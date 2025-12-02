@@ -22,5 +22,3 @@ echo "Building bca for $GOOS/$GOARCH..."
 CGO_ENABLED=0 go build -gcflags='all=-N -l' -o "dist/bca-$GOOS-$GOARCH" .
 
 echo "✅ Binary built: dist/bca-$GOOS-$GOARCH"
-ls -lh "dist/bca-$GOOS-$GOARCH"
-

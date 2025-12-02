@@ -11,7 +11,8 @@ var executeCmd = &cobra.Command{
 	Short: "Execute a Change definition in the execution backend",
 	Long: `Execute a Change definition inside the execution backend.
 This runs as part of a Kubernetes job and performs the actual code transformation.`,
-	Args: cobra.ExactArgs(1),
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := GetLogger()
 		changeFile := args[0]

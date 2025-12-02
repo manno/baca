@@ -8,10 +8,11 @@ import (
 )
 
 var cloneCmd = &cobra.Command{
-	Use:   "clone [repo-url]",
-	Short: "Clone a git repository",
-	Long:  `Clone a git repository in the execution backend using fleet gitcloner.`,
-	Args:  cobra.ExactArgs(1),
+	Use:          "clone [repo-url]",
+	Short:        "Clone a git repository",
+	Long:         `Clone a git repository in the execution backend using fleet gitcloner.`,
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := GetLogger()
 		repoURL := args[0]

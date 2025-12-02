@@ -2,6 +2,8 @@ package backend
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"strings"
@@ -161,9 +163,15 @@ func (k *KubernetesBackend) buildJobScript(c *change.Change, repoURL string) str
 		"chmod 600 ~/.git-credentials",
 		"git config --global user.email \"bca@example.com\"",
 		"git config --global user.name \"BCA Bot\"",
-		"fleet gitcloner $REPO_URL ./repo",
-		"cd ./repo",
 	}
+
+	// Clone repository with optional branch (defaults to 'main')
+	branch := c.Spec.Branch
+	if branch == "" {
+		branch = "main"
+	}
+	cloneCmd := fmt.Sprintf("fleet gitcloner --branch %s $REPO_URL ./repo", branch)
+	script = append(script, cloneCmd, "cd ./repo")
 
 	// Download agents.md and resources
 	if c.Spec.AgentsMD != "" {
@@ -175,11 +183,15 @@ func (k *KubernetesBackend) buildJobScript(c *change.Change, repoURL string) str
 	}
 
 	// Execute the coding agent with the mapped command
-	// For copilot-cli, prefer COPILOT_TOKEN if available, otherwise use GITHUB_TOKEN
 	if c.Spec.Agent == "copilot-cli" {
+		// For copilot-cli, prefer COPILOT_TOKEN if available, otherwise use GITHUB_TOKEN
 		script = append(script, "export GITHUB_TOKEN=${COPILOT_TOKEN:-$GITHUB_TOKEN}")
+		// Run copilot in interactive mode with prompt
+		script = append(script, fmt.Sprintf("%s --add-dir /workspace --add-dir /tmp --allow-all-tools -p \"$PROMPT\"", agentCommand))
+	} else {
+		// For other agents (gemini-cli), pass prompt directly
+		script = append(script, fmt.Sprintf("%s \"$PROMPT\"", agentCommand))
 	}
-	script = append(script, fmt.Sprintf("%s \"$PROMPT\"", agentCommand))
 
 	// Create pull request (restore GITHUB_TOKEN for gh CLI if we changed it)
 	script = append(script, "gh pr create --fill")
@@ -189,8 +201,8 @@ func (k *KubernetesBackend) buildJobScript(c *change.Change, repoURL string) str
 
 func (k *KubernetesBackend) generateJobName(repoURL string) string {
 	u, err := url.Parse(repoURL)
-	if err != nil {
-		return "bca-job"
+	if err != nil || u.Scheme == "" {
+		return fmt.Sprintf("bca-job-%s", generateRandomSuffix())
 	}
 
 	path := strings.TrimPrefix(u.Path, "/")
@@ -198,11 +210,27 @@ func (k *KubernetesBackend) generateJobName(repoURL string) string {
 	path = strings.ReplaceAll(path, "/", "-")
 	path = strings.ToLower(path)
 
-	if len(path) > 50 {
-		path = path[:50]
+	// Calculate max length: 63 (k8s limit) - len("bca-") - len("-") - 8 (suffix)
+	const maxNameLen = 63
+	const prefix = "bca-"
+	const suffixLen = 8                                    // hex string length
+	maxPathLen := maxNameLen - len(prefix) - 1 - suffixLen // -1 for hyphen before suffix
+
+	if len(path) > maxPathLen {
+		path = path[:maxPathLen]
 	}
 
-	return fmt.Sprintf("bca-%s", path)
+	return fmt.Sprintf("bca-%s-%s", path, generateRandomSuffix())
+}
+
+// generateRandomSuffix creates a short random string for job name uniqueness
+func generateRandomSuffix() string {
+	b := make([]byte, 4)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to timestamp if random fails
+		return fmt.Sprintf("%x", time.Now().UnixNano()&0xffffffff)
+	}
+	return hex.EncodeToString(b)
 }
 
 func (k *KubernetesBackend) sanitizeLabel(s string) string {

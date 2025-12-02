@@ -33,6 +33,7 @@ Gemini authentication (if using gemini-cli agent, choose one):
     Generate at: https://aistudio.google.com/apikey
   --gemini-oauth - Copy OAuth credentials from ~/.gemini/ directory
     Authenticate gemini CLI first, then use this flag`,
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := GetLogger()
 		logger.Info("setting up execution backend")

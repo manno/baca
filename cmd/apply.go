@@ -12,7 +12,8 @@ var applyCmd = &cobra.Command{
 	Long: `Read a Change definition and execute it.
 Creates one job per repository defined in the Change.
 Monitors job status and reports when all jobs are done.`,
-	Args: cobra.ExactArgs(1),
+	Args:         cobra.ExactArgs(1),
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := GetLogger()
 		changeFile := args[0]

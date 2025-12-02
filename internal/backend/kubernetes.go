@@ -15,7 +15,7 @@ type KubernetesBackend struct {
 	client    client.Client
 }
 
-const DefaultImage = "ghcr.io/manno/background-coding-agent:latest"
+const DefaultImage = "ghcr.io/manno/background-coder:latest"
 
 func New(cfg *rest.Config, namespace string, logger *slog.Logger) (*KubernetesBackend, error) {
 	c, err := NewClient(cfg)

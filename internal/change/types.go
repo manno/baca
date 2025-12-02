@@ -13,4 +13,5 @@ type ChangeSpec struct {
 	Repos     []string `yaml:"repos"`
 	Agent     string   `yaml:"agent"`
 	Image     string   `yaml:"image,omitempty"`
+	Branch    string   `yaml:"branch,omitempty"` // Git branch to checkout (default: "main")
 }
