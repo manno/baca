@@ -5,21 +5,28 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/mm/background-coding-agent/internal/change"
+	"github.com/manno/background-coding-agent/internal/change"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 type KubernetesBackend struct {
-	namespace  string
-	kubeconfig string
-	logger     *slog.Logger
+	namespace string
+	logger    *slog.Logger
+	client    client.Client
 }
 
-func NewKubernetesBackend(namespace, kubeconfig string, logger *slog.Logger) *KubernetesBackend {
-	return &KubernetesBackend{
-		namespace:  namespace,
-		kubeconfig: kubeconfig,
-		logger:     logger,
+func NewKubernetesBackend(cfg *rest.Config, namespace string, logger *slog.Logger) (*KubernetesBackend, error) {
+	c, err := NewClient(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create kubernetes client: %w", err)
 	}
+
+	return &KubernetesBackend{
+		namespace: namespace,
+		logger:    logger,
+		client:    c,
+	}, nil
 }
 
 func (k *KubernetesBackend) Setup(ctx context.Context) error {

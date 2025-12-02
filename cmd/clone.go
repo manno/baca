@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/mm/background-coding-agent/internal/git"
+	"github.com/manno/background-coding-agent/internal/git"
 	"github.com/spf13/cobra"
 )
 

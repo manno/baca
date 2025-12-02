@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/mm/background-coding-agent/cmd"
+	"github.com/manno/background-coding-agent/cmd"
 )
 
 func main() {

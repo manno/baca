@@ -10,7 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/mm/background-coding-agent/internal/change"
+	"github.com/manno/background-coding-agent/internal/change"
 )
 
 type Executor struct {
