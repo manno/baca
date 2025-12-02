@@ -1,3 +1,6 @@
 .envrc
 runner-image
 bca
+bca-release
+bca-release-*
+dist/

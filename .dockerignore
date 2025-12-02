@@ -1,0 +1,29 @@
+# Binaries (except release binary needed for Docker)
+bca
+background-coding-agent
+
+# Test files
+tests/
+*.test
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Environment
+.envrc
+.env
+
+# Documentation (not needed in image)
+*.md
+docs/
+
+# Scripts (not needed in image)
+scripts/
+
+# CI/CD
+.github/

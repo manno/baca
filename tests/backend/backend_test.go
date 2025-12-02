@@ -107,7 +107,7 @@ var _ = Describe("Backend Integration", func() {
 				},
 			}
 
-			err := b.ApplyChange(ctx, ch)
+			err := b.ApplyChange(ctx, ch, false)
 			Expect(err).NotTo(HaveOccurred())
 
 			jobList := &batchv1.JobList{}
@@ -136,7 +136,7 @@ var _ = Describe("Backend Integration", func() {
 				},
 			}
 
-			err := b.ApplyChange(ctx, ch)
+			err := b.ApplyChange(ctx, ch, false)
 			Expect(err).NotTo(HaveOccurred())
 
 			jobList := &batchv1.JobList{}
@@ -163,7 +163,7 @@ var _ = Describe("Backend Integration", func() {
 				},
 			}
 
-			err := b.ApplyChange(ctx, ch)
+			err := b.ApplyChange(ctx, ch, false)
 			Expect(err).NotTo(HaveOccurred())
 
 			jobList := &batchv1.JobList{}
@@ -171,6 +171,34 @@ var _ = Describe("Backend Integration", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(jobList.Items).To(HaveLen(1))
 			Expect(jobList.Items[0].Spec.Template.Spec.Containers[0].Image).To(Equal("ghcr.io/manno/background-coding-agent:latest"))
+		})
+
+		It("can get job status", func() {
+			ch := &change.Change{
+				APIVersion: "v1",
+				Kind:       "Change",
+				Spec: change.ChangeSpec{
+					AgentsMD: "https://example.com/agents.md",
+					Prompt:   "Add tests",
+					Repos: []string{
+						"https://github.com/example/repo1",
+					},
+					Agent: "copilot-cli",
+				},
+			}
+
+			err := b.ApplyChange(ctx, ch, false)
+			Expect(err).NotTo(HaveOccurred())
+
+			jobList := &batchv1.JobList{}
+			err = k8sClient.List(ctx, jobList, client.InNamespace(namespace))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(jobList.Items).To(HaveLen(1))
+
+			jobName := jobList.Items[0].Name
+			status, err := b.GetJobStatus(ctx, jobName)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(status).To(BeElementOf("Pending", "Running"))
 		})
 	})
 })

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/manno/background-coding-agent/internal/change"
 	batchv1 "k8s.io/api/batch/v1"
@@ -89,9 +90,10 @@ func (k *KubernetesBackend) Setup(ctx context.Context, githubToken string) error
 	return nil
 }
 
-func (k *KubernetesBackend) ApplyChange(ctx context.Context, c *change.Change) error {
+func (k *KubernetesBackend) ApplyChange(ctx context.Context, c *change.Change, wait bool) error {
 	k.logger.Info("applying change", "repos", len(c.Spec.Repos))
 
+	var jobNames []string
 	for _, repo := range c.Spec.Repos {
 		k.logger.Info("creating job for repository", "repo", repo)
 
@@ -103,6 +105,13 @@ func (k *KubernetesBackend) ApplyChange(ctx context.Context, c *change.Change) e
 		}
 
 		k.logger.Info("job created", "repo", repo, "job", job.Name)
+		jobNames = append(jobNames, job.Name)
+	}
+
+	// Monitor job status if requested
+	if wait {
+		k.logger.Info("monitoring jobs", "count", len(jobNames))
+		return k.monitorJobs(ctx, jobNames)
 	}
 
 	return nil
@@ -233,6 +242,84 @@ func (k *KubernetesBackend) sanitizeLabel(s string) string {
 }
 
 func (k *KubernetesBackend) GetJobStatus(ctx context.Context, jobName string) (string, error) {
-	// TODO: Query Kubernetes API for job status
-	return "unknown", fmt.Errorf("not implemented")
+	job := &batchv1.Job{}
+	if err := k.client.Get(ctx, client.ObjectKey{Name: jobName, Namespace: k.namespace}, job); err != nil {
+		return "", fmt.Errorf("failed to get job: %w", err)
+	}
+
+	// Check job conditions
+	for _, condition := range job.Status.Conditions {
+		if condition.Type == batchv1.JobComplete && condition.Status == corev1.ConditionTrue {
+			return "Complete", nil
+		}
+		if condition.Type == batchv1.JobFailed && condition.Status == corev1.ConditionTrue {
+			return "Failed", nil
+		}
+	}
+
+	if job.Status.Active > 0 {
+		return "Running", nil
+	}
+
+	return "Pending", nil
+}
+
+func (k *KubernetesBackend) monitorJobs(ctx context.Context, jobNames []string) error {
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+
+	timeout := time.After(30 * time.Minute)
+	jobStatus := make(map[string]string)
+
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timeout waiting for jobs to complete")
+		case <-ticker.C:
+			allDone := true
+			anyFailed := false
+
+			for _, jobName := range jobNames {
+				if jobStatus[jobName] == "Complete" || jobStatus[jobName] == "Failed" {
+					continue
+				}
+
+				status, err := k.GetJobStatus(ctx, jobName)
+				if err != nil {
+					k.logger.Error("failed to get job status", "job", jobName, "error", err)
+					continue
+				}
+
+				if status != jobStatus[jobName] {
+					k.logger.Info("job status changed", "job", jobName, "status", status)
+					jobStatus[jobName] = status
+				}
+
+				if status != "Complete" && status != "Failed" {
+					allDone = false
+				}
+				if status == "Failed" {
+					anyFailed = true
+				}
+			}
+
+			if allDone {
+				if anyFailed {
+					k.logger.Error("some jobs failed")
+					k.logJobSummary(jobStatus)
+					return fmt.Errorf("some jobs failed")
+				}
+				k.logger.Info("all jobs completed successfully")
+				k.logJobSummary(jobStatus)
+				return nil
+			}
+		}
+	}
+}
+
+func (k *KubernetesBackend) logJobSummary(jobStatus map[string]string) {
+	k.logger.Info("job summary")
+	for job, status := range jobStatus {
+		k.logger.Info("job status", "job", job, "status", status)
+	}
 }

@@ -57,6 +57,7 @@ Apply the change:
 This will:
 - Create one Kubernetes Job per repository
 - Each job will clone the repo, download resources, run the coding agent, and create a PR
+- Monitor job status and report when all jobs complete (or use `--no-wait` to return immediately)
 
 ## Commands
 
@@ -84,6 +85,9 @@ Apply a Change definition:
 Options:
 - `--namespace` - Kubernetes namespace (default: "default")
 - `--kubeconfig` - Path to kubeconfig file
+- `--wait` - Wait for jobs to complete (default: true)
+
+By default, the command monitors job status and reports when all jobs are done. Use `--no-wait` to create jobs and return immediately.
 
 ### clone
 
@@ -158,13 +162,34 @@ spec:
 ### Prerequisites
 
 - Go 1.25+
+- Docker (for building runner image)
 - Kubernetes cluster (for integration tests: envtest)
 - GitHub token
 
 ### Build
 
+Local development:
 ```bash
 go build -o bca .
+```
+
+Release binaries (static, with debug symbols):
+```bash
+./scripts/build-release.sh                    # Builds for linux/amd64 (default)
+GOARCH=arm64 ./scripts/build-release.sh       # Builds for linux/arm64
+GOOS=darwin GOARCH=arm64 ./scripts/build-release.sh  # Builds for macOS arm64
+```
+
+Binaries are output to `dist/bca-$GOOS-$GOARCH`
+
+Docker multi-arch image:
+```bash
+# Step 1: Build binaries for all target architectures
+./scripts/build-release.sh              # linux/amd64
+GOARCH=arm64 ./scripts/build-release.sh # linux/arm64
+
+# Step 2: Build and push multi-arch image
+./scripts/build-runner-image.sh         # Uses buildx for linux/amd64,linux/arm64
 ```
 
 ### Test

@@ -29,6 +29,7 @@ Monitors job status and reports when all jobs are done.`,
 
 		kubeconfig, _ := cmd.Flags().GetString("kubeconfig")
 		namespace, _ := cmd.Flags().GetString("namespace")
+		wait, _ := cmd.Flags().GetBool("wait")
 
 		cfg, err := backend.GetConfig(kubeconfig)
 		if err != nil {
@@ -36,14 +37,14 @@ Monitors job status and reports when all jobs are done.`,
 			return err
 		}
 
-		backend, err := backend.New(cfg, namespace, logger)
+		b, err := backend.New(cfg, namespace, logger)
 		if err != nil {
 			logger.Error("failed to create backend", "error", err)
 			return err
 		}
 
 		ctx := cmd.Context()
-		if err := backend.ApplyChange(ctx, ch); err != nil {
+		if err := b.ApplyChange(ctx, ch, wait); err != nil {
 			logger.Error("failed to apply change", "error", err)
 			return err
 		}
@@ -58,4 +59,5 @@ func init() {
 
 	applyCmd.Flags().String("kubeconfig", "", "path to kubeconfig file")
 	applyCmd.Flags().String("namespace", "default", "kubernetes namespace")
+	applyCmd.Flags().Bool("wait", true, "wait for jobs to complete")
 }
