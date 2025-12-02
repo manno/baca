@@ -2,6 +2,12 @@
 
 A platform that allows engineers to execute complex code transformations across multiple repositories using natural language prompts.
 
+## ⚠️  Security Notice
+
+**CRITICAL: API tokens and credentials have very sensitive permissions!**
+
+Never commit tokens to source control. Always use environment variables or secure secret management. See [AGENTS.md](AGENTS.md#security-best-practices) for complete security guidance.
+
 ## Quick Start
 
 ### 1. Build the CLI
@@ -15,7 +21,7 @@ go build -o bca .
 First, configure your GitHub token to allow cloning repos and creating PRs:
 
 ```bash
-export GITHUB_TOKEN=ghp_your_token_here
+export GITHUB_TOKEN=ghp_your_token_here  # NEVER commit this!
 ```
 
 Then setup the Kubernetes backend:
@@ -188,7 +194,8 @@ Docker multi-arch image:
 ./scripts/build-release.sh              # linux/amd64
 GOARCH=arm64 ./scripts/build-release.sh # linux/arm64
 
-# Step 2: Build and push multi-arch image
+# Step 2: Build multi-arch image
+PLATFORMS=linux/arm64
 ./scripts/build-runner-image.sh         # Uses buildx for linux/amd64,linux/arm64
 ```
 

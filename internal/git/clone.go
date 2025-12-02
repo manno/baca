@@ -3,9 +3,11 @@ package git
 import (
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 type Cloner struct {
@@ -23,13 +25,19 @@ func (c *Cloner) Clone(repoURL, outputDir, branch string) error {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
+	// Inject GITHUB_TOKEN into URL if available
+	authenticatedURL, err := c.injectToken(repoURL)
+	if err != nil {
+		return fmt.Errorf("failed to prepare repository URL: %w", err)
+	}
+
 	args := []string{"clone"}
 
 	if branch != "" {
 		args = append(args, "--branch", branch)
 	}
 
-	args = append(args, repoURL, outputDir)
+	args = append(args, authenticatedURL, outputDir)
 
 	cmd := exec.Command("git", args...)
 	cmd.Stdout = os.Stdout
@@ -41,6 +49,30 @@ func (c *Cloner) Clone(repoURL, outputDir, branch string) error {
 
 	c.logger.Info("clone completed successfully", "path", outputDir)
 	return nil
+}
+
+// injectToken injects GITHUB_TOKEN into HTTPS URLs for authentication
+func (c *Cloner) injectToken(repoURL string) (string, error) {
+	token := os.Getenv("GITHUB_TOKEN")
+	if token == "" {
+		c.logger.Debug("no GITHUB_TOKEN found, cloning without authentication")
+		return repoURL, nil
+	}
+
+	// Only inject token for HTTPS URLs
+	if !strings.HasPrefix(repoURL, "https://") {
+		return repoURL, nil
+	}
+
+	u, err := url.Parse(repoURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid repository URL: %w", err)
+	}
+
+	// Inject token as username in URL (GitHub uses token as username with empty password)
+	u.User = url.UserPassword(token, "")
+
+	return u.String(), nil
 }
 
 func (c *Cloner) CreateBranch(repoPath, branchName string) error {

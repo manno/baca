@@ -1,6 +1,9 @@
 .envrc
+creds.yaml
 runner-image
 bca
 bca-release
 bca-release-*
 dist/
+dev
+tmp/

@@ -52,10 +52,14 @@ var _ = Describe("Backend Integration", func() {
 			b, err := backend.New(cfg, namespace, logger)
 			Expect(err).NotTo(HaveOccurred())
 
-			err = b.Setup(ctx, "test-github-token")
+			credentials := map[string]string{
+				"GITHUB_TOKEN":   "test-github-token",
+				"GOOGLE_API_KEY": "test-google-key",
+			}
+			err = b.Setup(ctx, credentials)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Verify secret was created
+			// Verify secret was created with all credentials
 			secret := &corev1.Secret{}
 			err = k8sClient.Get(ctx, client.ObjectKey{
 				Name:      "bca-credentials",
@@ -63,6 +67,7 @@ var _ = Describe("Backend Integration", func() {
 			}, secret)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(string(secret.Data["GITHUB_TOKEN"])).To(Equal("test-github-token"))
+			Expect(string(secret.Data["GOOGLE_API_KEY"])).To(Equal("test-google-key"))
 		})
 	})
 
@@ -84,7 +89,10 @@ var _ = Describe("Backend Integration", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			// Setup credentials first
-			err = b.Setup(ctx, "test-github-token")
+			credentials := map[string]string{
+				"GITHUB_TOKEN": "test-github-token",
+			}
+			err = b.Setup(ctx, credentials)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
