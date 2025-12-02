@@ -1,0 +1,54 @@
+{
+  "formatters": {
+    "enable": ["goimports"]
+  },
+  "linters": {
+    "default": "none",
+    "enable": [
+      "dupl",
+      "errcheck",
+      "funlen",
+      "ginkgolinter",
+      "gocyclo",
+      "gosec",
+      "govet",
+      "ineffassign",
+      "misspell",
+      "nakedret",
+      "revive",
+      "staticcheck",
+      "unparam",
+      "unused"
+    ],
+    "exclusions": {
+      "generated": "lax",
+      "presets": [
+        "comments",
+        "common-false-positives",
+        "legacy",
+        "std-error-handling"
+      ],
+      "rules": [
+      ]
+    },
+    "settings": {
+      "funlen": {
+        "lines": 270,
+        "statements": 110
+      },
+      "revive": {
+        "rules": [
+          {
+            "name": "blank-imports",
+            "severity": "warning"
+          },
+          {
+            "name": "unexported-return",
+            "severity": "warning"
+          }
+        ]
+      }
+    }
+  },
+  "version": "2"
+}

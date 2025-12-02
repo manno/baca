@@ -1,0 +1,21 @@
+#!/bin/bash
+# Description: Create the management cluster
+
+set -euxo pipefail
+
+# k3d version list k3s
+# https://hub.docker.com/r/rancher/k3s/tags
+# k3d_args="-i docker.io/rancher/k3s:v1.22.15-k3s1"
+
+args=${k3d_args---network fleet}
+unique_api_port=${unique_api_port-36443}
+unique_tls_port=${unique_tls_port-443}
+
+name=${1-upstream}
+
+k3d cluster create "$name" \
+  --servers 3 \
+  --api-port "$unique_api_port" \
+  -p "$unique_tls_port:443@server:0" \
+  --k3s-arg '--tls-san=k3d-upstream-server-0@server:0' \
+  $args
