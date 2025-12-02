@@ -36,7 +36,7 @@ Monitors job status and reports when all jobs are done.`,
 			return err
 		}
 
-		backend, err := backend.NewKubernetesBackend(cfg, namespace, logger)
+		backend, err := backend.New(cfg, namespace, logger)
 		if err != nil {
 			logger.Error("failed to create backend", "error", err)
 			return err
