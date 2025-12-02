@@ -3,6 +3,7 @@ package backend_test
 import (
 	"io"
 	"log/slog"
+	"os"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -17,8 +18,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-var _ = Describe("Backend Integration", func() {
+var _ = Describe("Backend Apply", func() {
 	var logger *slog.Logger
+	var b *backend.KubernetesBackend
 
 	BeforeEach(func() {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -39,63 +41,36 @@ var _ = Describe("Backend Integration", func() {
 				},
 			})).ToNot(HaveOccurred())
 		})
-	})
 
-	When("Creating KubernetesBackend", func() {
-		It("successfully creates backend with config", func() {
-			b, err := backend.New(cfg, namespace, logger)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(b).NotTo(BeNil())
-		})
+		b, err = backend.New(cfg, namespace, logger)
+		Expect(err).NotTo(HaveOccurred())
 
-		It("can call Setup", func() {
-			b, err := backend.New(cfg, namespace, logger)
-			Expect(err).NotTo(HaveOccurred())
+		// Setup credentials - use real tokens from environment if available, otherwise use test tokens
+		githubToken := os.Getenv("GITHUB_TOKEN")
+		if githubToken == "" {
+			githubToken = os.Getenv("COPILOT_TOKEN")
+		}
+		if githubToken == "" {
+			githubToken = "test-github-token"
+		}
 
-			credentials := map[string]string{
-				"GITHUB_TOKEN":   "test-github-token",
-				"GOOGLE_API_KEY": "test-google-key",
-			}
-			err = b.Setup(ctx, credentials)
-			Expect(err).NotTo(HaveOccurred())
+		credentials := map[string]string{
+			"GITHUB_TOKEN": githubToken,
+		}
 
-			// Verify secret was created with all credentials
-			secret := &corev1.Secret{}
-			err = k8sClient.Get(ctx, client.ObjectKey{
-				Name:      "bca-credentials",
-				Namespace: namespace,
-			}, secret)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(secret.Data["GITHUB_TOKEN"])).To(Equal("test-github-token"))
-			Expect(string(secret.Data["GOOGLE_API_KEY"])).To(Equal("test-google-key"))
-		})
-	})
+		// Add optional credentials if available
+		if copilotToken := os.Getenv("COPILOT_TOKEN"); copilotToken != "" {
+			credentials["COPILOT_TOKEN"] = copilotToken
+		}
+		if geminiKey := os.Getenv("GEMINI_API_KEY"); geminiKey != "" {
+			credentials["GEMINI_API_KEY"] = geminiKey
+		}
 
-	When("Using GetConfig", func() {
-		It("can get config from kubeconfig file", func() {
-			cfg2, err := backend.GetConfig(kubeconfigPath)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(cfg2).NotTo(BeNil())
-			Expect(cfg2.Host).To(Equal(cfg.Host))
-		})
+		err = b.Setup(ctx, credentials)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	When("ApplyChange", func() {
-		var b *backend.KubernetesBackend
-
-		BeforeEach(func() {
-			var err error
-			b, err = backend.New(cfg, namespace, logger)
-			Expect(err).NotTo(HaveOccurred())
-
-			// Setup credentials first
-			credentials := map[string]string{
-				"GITHUB_TOKEN": "test-github-token",
-			}
-			err = b.Setup(ctx, credentials)
-			Expect(err).NotTo(HaveOccurred())
-		})
-
 		It("creates a job for each repository", func() {
 			ch := &change.Change{
 				APIVersion: "v1",
