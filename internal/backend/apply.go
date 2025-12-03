@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -104,14 +105,12 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 		Image:           image,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Command: []string{
-			"sh", "-c",
+			"bash", "-c",
 			`set -e
 cd /workspace/repo
 git config --global user.email "bca@example.com"
 git config --global user.name "BCA Bot"
-# Create a unique branch name
-BRANCH_NAME="bca-$(date +%s)-${RANDOM}"
-git checkout -b "${BRANCH_NAME}"
+
 # Save original GITHUB_TOKEN for gh pr create
 SAVED_GITHUB_TOKEN="${GITHUB_TOKEN}"
 
@@ -122,25 +121,43 @@ bca execute --config "$CONFIG" --work-dir /workspace/repo
 echo "------------"
 echo " AGENT DONE "
 echo "------------"
+
 # Restore original GITHUB_TOKEN for gh pr create and git push
 export GITHUB_TOKEN="${SAVED_GITHUB_TOKEN}"
+
+# Create a branch from the current state (after agent changes)
+BRANCH_NAME="bca-$(date +%s)-${RANDOM}"
+git checkout -b "${BRANCH_NAME}"
+
 # Check if there are any changes (uncommitted or committed on branch)
-if git diff --quiet && git diff --cached --quiet && git diff --quiet origin/main...HEAD; then
+# Use git rev-list to safely check for new commits (handles unrelated histories)
+if git diff --quiet && git diff --cached --quiet && [ "$(git rev-list --count HEAD ^origin/main 2>/dev/null || echo 1)" = "0" ]; then
   echo "No changes made by agent, skipping PR creation"
   exit 0
 fi
+
 # Configure git to use GITHUB_TOKEN for authentication
+gh auth setup-git
 git config --global url."https://oauth2:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+
 # Commit any uncommitted changes
 if ! git diff --quiet || ! git diff --cached --quiet; then
   git add -A
+  PROMPT_SHORT="${PROMPT:0:500}"
   git commit -m "BCA: Automated code changes
 
-Prompt: ${PROMPT:0:500}"
+Prompt: ${PROMPT_SHORT}"
 fi
+
 git push origin "${BRANCH_NAME}"
-# Create pull request
-gh pr create --fill`,
+
+# Extract repo owner and name from origin URL
+REPO_URL=$(git remote get-url origin)
+REPO_PATH=$(echo "$REPO_URL" | sed -e 's|^https://github.com/||' -e 's|^git@github.com:||' -e 's|\.git$||')
+
+# Create pull request with explicit repo and branches
+# Use --fill-first to avoid huge body from all commits
+gh pr create --repo "${REPO_PATH}" --head "${BRANCH_NAME}" --base main --fill-first`,
 		},
 		VolumeMounts: []corev1.VolumeMount{workspaceMount},
 		Env: []corev1.EnvVar{
@@ -305,6 +322,7 @@ func (k *KubernetesBackend) monitorJobs(ctx context.Context, jobNames []string) 
 
 	timeout := time.After(30 * time.Minute)
 	jobStatus := make(map[string]string)
+	loggedPods := make(map[string]bool) // Track which pods we've already logged
 
 	for {
 		select {
@@ -328,6 +346,12 @@ func (k *KubernetesBackend) monitorJobs(ctx context.Context, jobNames []string) 
 				if status != jobStatus[jobName] {
 					k.logger.Info("job status changed", "job", jobName, "status", status)
 					jobStatus[jobName] = status
+				}
+
+				// When job completes or fails, print pod logs
+				if (status == "Complete" || status == "Failed") && !loggedPods[jobName] {
+					k.printPodLogs(ctx, jobName)
+					loggedPods[jobName] = true
 				}
 
 				if status != "Complete" && status != "Failed" {
@@ -356,5 +380,65 @@ func (k *KubernetesBackend) logJobSummary(jobStatus map[string]string) {
 	k.logger.Info("job summary")
 	for job, status := range jobStatus {
 		k.logger.Info("job status", "job", job, "status", status)
+	}
+}
+
+func (k *KubernetesBackend) printPodLogs(ctx context.Context, jobName string) {
+	// Find the pod for this job
+	podList := &corev1.PodList{}
+	err := k.client.List(ctx, podList, client.InNamespace(k.namespace), client.MatchingLabels{
+		"job-name": jobName,
+	})
+	if err != nil {
+		k.logger.Error("failed to list pods for job", "job", jobName, "error", err)
+		return
+	}
+
+	if len(podList.Items) == 0 {
+		k.logger.Warn("no pods found for job", "job", jobName)
+		return
+	}
+
+	pod := podList.Items[0]
+	k.logger.Info("=== Pod logs for job ===", "job", jobName, "pod", pod.Name)
+
+	// Get logs from all containers
+	for _, container := range pod.Spec.InitContainers {
+		k.printContainerLogs(ctx, pod.Name, container.Name, true)
+	}
+	for _, container := range pod.Spec.Containers {
+		k.printContainerLogs(ctx, pod.Name, container.Name, false)
+	}
+
+	k.logger.Info("=== End of logs ===", "job", jobName)
+}
+
+func (k *KubernetesBackend) printContainerLogs(ctx context.Context, podName, containerName string, isInit bool) {
+	containerType := "container"
+	if isInit {
+		containerType = "init-container"
+	}
+
+	req := k.clientset.CoreV1().Pods(k.namespace).GetLogs(podName, &corev1.PodLogOptions{
+		Container: containerName,
+	})
+
+	logs, err := req.Stream(ctx)
+	if err != nil {
+		k.logger.Error("failed to get logs", "pod", podName, "container", containerName, "type", containerType, "error", err)
+		return
+	}
+	defer logs.Close()
+
+	k.logger.Info("--- Logs from "+containerType+" ---", "container", containerName)
+	
+	scanner := bufio.NewScanner(logs)
+	for scanner.Scan() {
+		// Print directly to stdout (not as structured log)
+		fmt.Println(scanner.Text())
+	}
+	
+	if err := scanner.Err(); err != nil {
+		k.logger.Error("error reading logs", "error", err)
 	}
 }
