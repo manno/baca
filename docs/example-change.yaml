@@ -1,0 +1,13 @@
+kind: Change
+apiVersion: v1
+spec:
+  agentsmd: https://example.com/agents.md
+  resources:
+  - https://example.com/docs/guide.md
+  prompt: "Add error handling to all HTTP handlers"
+  repos:
+  - https://github.com/example/repo1
+  - https://github.com/example/repo2
+  agent: copilot-cli
+  image: ghcr.io/example/runner:latest
+  branch: main  # Optional: defaults to "main" if not specified

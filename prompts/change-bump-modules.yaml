@@ -1,0 +1,13 @@
+kind: Change
+apiVersion: v1
+spec:
+  prompt: |
+    Update the go modules in this repo to their latest versions.
+
+    ---
+    Important:
+    * Do not push to Github.
+    * Never expose environment variables.
+  repos:
+  - https://github.com/manno-test/demo-app
+  agent: copilot-cli

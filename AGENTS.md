@@ -37,9 +37,18 @@ Background Coding Agent (BCA) is a platform that allows engineers to execute com
 ```yaml
 Pod:
   initContainers:
+  - name: fork-setup
+    image: ghcr.io/manno/background-coder:latest
+    command: gh repo fork $ORIGINAL_REPO_URL
+    volumeMounts:
+    - name: workspace
+      mountPath: /workspace
+    envFrom:
+    - secretRef: bca-credentials
+
   - name: git-clone
     image: ghcr.io/manno/background-coder:latest
-    command: fleet gitcloner --branch main $REPO_URL /workspace/repo
+    command: fleet gitcloner --branch main $FORK_URL /workspace/repo
     volumeMounts:
     - name: workspace
       mountPath: /workspace
@@ -52,11 +61,15 @@ Pod:
     command: |
       cd /workspace/repo
       git config --global user.name "BCA Bot"
+      git remote add upstream $ORIGINAL_REPO_URL
       bca execute --config "$CONFIG" --work-dir /workspace/repo
-      gh pr create --fill
+      git push origin $BRANCH_NAME
+      gh pr create --repo $ORIGINAL_REPO --head $FORK_OWNER:$BRANCH_NAME
     env:
     - name: CONFIG
       value: '{"agent":"copilot-cli","prompt":"...","agentsmd":"...","resources":[...]}'
+    - name: ORIGINAL_REPO_URL
+      value: https://github.com/org/repo
     volumeMounts:
     - name: workspace
       mountPath: /workspace
@@ -69,8 +82,9 @@ Pod:
 ```
 
 **Why Init Containers?**
-- Separation of concerns: clone vs. execute
-- Init container shares /workspace volume with main container
+- **fork-setup**: Creates/syncs fork in authenticated user's account
+- **git-clone**: Clones fork (not original repo) for isolation
+- Init containers share /workspace volume with main container
 - Standard Kubernetes pattern for setup tasks
 
 **Why JSON Config?**
@@ -79,24 +93,33 @@ Pod:
 - No shell escaping issues
 - Easy to serialize/deserialize
 
+**Security Model (Staging Fork Approach):**
+- Changes pushed to user's fork, not directly to target repos
+- Cross-fork PRs created from `user-fork:branch` → `original-repo:main`
+- Limits blast radius of compromised prompts
+- Incremental security improvement (not a complete solution for shared usage)
+
 ### Execution Flow
 
 1. **User** creates Change YAML with prompt, repos, agent
 2. **bca apply** creates one Kubernetes Job per repository
-3. **Init Container** runs `fleet gitcloner --branch main $REPO /workspace/repo`
-4. **Main Container** receives JSON config via `$CONFIG` environment variable
-5. **bca execute** parses JSON, downloads resources (agentsmd, resources), runs agent
-6. **Agent** (copilot or gemini) executes transformation
-7. **gh pr create** creates pull request with changes
-8. **Job cleanup** happens automatically after 1 hour (TTL)
+3. **fork-setup init container** runs `gh repo fork` to create/sync fork in user's account
+4. **git-clone init container** runs `fleet gitcloner --branch main $FORK_URL /workspace/repo`
+5. **Main Container** receives JSON config via `$CONFIG` environment variable
+6. **bca execute** parses JSON, downloads resources (agentsmd, resources), runs agent
+7. **Agent** (copilot or gemini) executes transformation on fork
+8. **git push** pushes changes to fork
+9. **gh pr create** creates cross-fork pull request to original repo
+10. **Job cleanup** happens automatically after 5 minutes (TTL)
 
 ### Key Design Decisions
 
+- **Staging fork**: Security isolation - changes pushed to fork, not target repo
 - **No ConfigMap**: Pass config as JSON env var (simpler, no extra resource)
 - **fleet gitcloner**: Handles git auth automatically from GITHUB_TOKEN
 - **Single JSON**: Avoids shell escaping nightmare with multiple env vars
 - **Execute command**: Knows how to run each agent (copilot vs gemini)
-- **Init container**: Isolation, reusable pattern, clear separation
+- **Two init containers**: Fork setup, then clone fork
 
 ## Project Structure
 

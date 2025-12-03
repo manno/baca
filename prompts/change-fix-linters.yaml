@@ -1,0 +1,14 @@
+kind: Change
+apiVersion: v1
+spec:
+  prompt: |
+    Remove the exclusion rules from the golangci-lint configuration file in the repository.
+    Run golangci-lint and fix any issues found in the codebase.
+
+    ---
+    Important:
+    * Do not push to Github.
+    * Never expose environment variables.
+  repos:
+  - https://github.com/manno/fleet
+  agent: copilot-cli

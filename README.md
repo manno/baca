@@ -109,26 +109,49 @@ spec:
 └──────┬──────┘
        │
        v
-┌───────────────────────────────────┐
-│  Kubernetes Job (per repository)  │
-│                                   │
-│  Init Container:                  │
-│  └─ fleet gitcloner (clone repo)  │
-│                                   │
-│  Main Container:                  │
-│  ├─ bca execute (run agent)       │
-│  └─ gh pr create (create PR)      │
-└───────────────────────────────────┘
+┌───────────────────────────────────────────┐
+│  Kubernetes Job (per repository)          │
+│                                           │
+│  Init Container 1: fork-setup             │
+│  └─ gh repo fork (create/sync fork)       │
+│                                           │
+│  Init Container 2: git-clone              │
+│  └─ fleet gitcloner (clone fork)          │
+│                                           │
+│  Main Container: runner                   │
+│  ├─ bca execute (run agent on fork)       │
+│  ├─ git push (push to fork)               │
+│  └─ gh pr create (fork → original repo)   │
+└───────────────────────────────────────────┘
 ```
 
-**Init Container:** Clones repository using fleet gitcloner to shared volume  
-**Main Container:** Runs `bca execute --config <json>` with agent-specific logic  
-**Shared Volume:** EmptyDir at `/workspace` for passing repository between containers
+**Init Container 1:** Creates/syncs fork in user's account using `gh repo fork`  
+**Init Container 2:** Clones fork using fleet gitcloner to shared volume  
+**Main Container:** Runs `bca execute --config <json>`, pushes to fork, creates cross-fork PR  
+**Shared Volume:** EmptyDir at `/workspace` for passing data between containers
+
+### Security Model
+
+BCA uses a **staging fork approach** to limit token exposure:
+
+1. **Fork isolation**: Changes are pushed to a fork in the authenticated user's account, not directly to target repos
+2. **Token scope**: `GITHUB_TOKEN` only needs write access to user's forks and PR creation on target repos
+3. **Cross-fork PRs**: Pull requests are created from `user-fork:branch` → `original-repo:main`
+
+**What this protects against:**
+- Malicious prompts cannot directly push to production repos
+- Fork serves as isolation boundary for untrusted code execution
+
+**Remaining considerations for shared usage:**
+- Tokens can still create PRs (potential for spam)
+- Agent API tokens (Copilot/Gemini) are still exposed to job environment
+- No isolation between different users' jobs in same namespace
 
 ## Job Execution Flow
 
-1. **Init container** clones repo with `fleet gitcloner --branch main <repo> /workspace/repo`
-2. **Main container** receives JSON config via `$CONFIG` environment variable:
+1. **fork-setup init container** creates or syncs fork: `gh repo fork owner/repo`
+2. **git-clone init container** clones fork with `fleet gitcloner --branch main <fork-url> /workspace/repo`
+3. **Main container** receives JSON config via `$CONFIG` environment variable:
    ```json
    {
      "agent": "copilot-cli",
@@ -137,11 +160,12 @@ spec:
      "resources": ["https://..."]
    }
    ```
-3. **bca execute** downloads resources and runs agent:
+4. **bca execute** downloads resources and runs agent on forked repo:
    - Copilot: `copilot --add-dir /workspace --add-dir /tmp -p "$PROMPT" --allow-all-tools`
    - Gemini: `gemini "$PROMPT"`
-4. **gh pr create** creates pull request with changes
-5. **Auto-cleanup** after 1 hour (TTL), max 3 retries
+5. **git push** pushes changes to fork
+6. **gh pr create** creates pull request from fork to original repo
+7. **Auto-cleanup** after 5 minutes (TTL), max 1 retry
 
 ## Agents
 

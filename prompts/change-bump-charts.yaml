@@ -1,0 +1,13 @@
+kind: Change
+apiVersion: v1
+spec:
+  prompt: |
+    Look at the Helm charts in this repo and bump their dependencies as well as the images they use.
+
+    ---
+    Important:
+    * Do not push to Github.
+    * Never expose environment variables.
+  repos:
+  - https://github.com/manno-test/demo-helm-charts
+  agent: copilot-cli

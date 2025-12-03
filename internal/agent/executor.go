@@ -106,6 +106,7 @@ func (e *Executor) runAgent(ctx context.Context, c *change.Change) error {
 		cmd = exec.CommandContext(ctx, agentCommand,
 			"--add-dir", "/workspace",
 			"--add-dir", "/tmp",
+			"--silent",
 			"-p", c.Spec.Prompt,
 			"--allow-all-tools")
 
