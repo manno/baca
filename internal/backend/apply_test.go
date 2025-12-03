@@ -3,8 +3,6 @@ package backend
 import (
 	"strings"
 	"testing"
-
-	"github.com/manno/background-coding-agent/internal/change"
 )
 
 func TestGenerateJobName(t *testing.T) {
@@ -132,105 +130,5 @@ func TestGenerateRandomSuffix(t *testing.T) {
 	uniqueRate := float64(len(seen)) / float64(iterations)
 	if uniqueRate < 0.99 {
 		t.Errorf("suffix collision rate too high: %.2f%% unique", uniqueRate*100)
-	}
-}
-
-func TestBuildJobScriptWithBranch(t *testing.T) {
-	k := &KubernetesBackend{}
-
-	tests := []struct {
-		name       string
-		change     *change.Change
-		repoURL    string
-		wantSubstr string
-	}{
-		{
-			name: "with branch specified",
-			change: &change.Change{
-				Spec: change.ChangeSpec{
-					Branch: "develop",
-					Agent:  "gemini-cli",
-					Prompt: "test",
-				},
-			},
-			repoURL:    "https://github.com/manno/fleet",
-			wantSubstr: "fleet gitcloner --branch develop",
-		},
-		{
-			name: "defaults to main when branch not specified",
-			change: &change.Change{
-				Spec: change.ChangeSpec{
-					Agent:  "gemini-cli",
-					Prompt: "test",
-				},
-			},
-			repoURL:    "https://github.com/manno/fleet",
-			wantSubstr: "fleet gitcloner --branch main",
-		},
-		{
-			name: "with main branch explicitly specified",
-			change: &change.Change{
-				Spec: change.ChangeSpec{
-					Branch: "main",
-					Agent:  "gemini-cli",
-					Prompt: "test",
-				},
-			},
-			repoURL:    "https://github.com/manno/fleet",
-			wantSubstr: "fleet gitcloner --branch main",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			script := k.buildJobScript(tt.change, tt.repoURL)
-			if !strings.Contains(script, tt.wantSubstr) {
-				t.Errorf("expected script to contain %q, got:\n%s", tt.wantSubstr, script)
-			}
-		})
-	}
-}
-
-func TestBuildJobScriptCopilotCommand(t *testing.T) {
-	k := &KubernetesBackend{}
-
-	tests := []struct {
-		name       string
-		agent      string
-		wantSubstr []string
-	}{
-		{
-			name:  "copilot-cli uses interactive mode with --add-dir and --allow-all-tools",
-			agent: "copilot-cli",
-			wantSubstr: []string{
-				"copilot --add-dir /workspace --add-dir /tmp",
-				"copilot -p \"$PROMPT\" --allow-all-tools",
-			},
-		},
-		{
-			name:  "gemini-cli uses direct prompt",
-			agent: "gemini-cli",
-			wantSubstr: []string{
-				"gemini \"$PROMPT\"",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ch := &change.Change{
-				Spec: change.ChangeSpec{
-					Agent:  tt.agent,
-					Prompt: "Fix the bug",
-				},
-			}
-			script := k.buildJobScript(ch, "https://github.com/example/repo")
-
-			for _, want := range tt.wantSubstr {
-				if !strings.Contains(script, want) {
-					t.Errorf("expected script to contain %q, got:\n%s", want, script)
-				}
-			}
-		})
 	}
 }

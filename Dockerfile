@@ -22,6 +22,17 @@ RUN echo "Installing custom CLIs: Gemini CLI and GitHub Copilot CLI..." && \
 
 ARG TARGETARCH
 
+# Install GitHub CLI (gh)
+RUN echo "Installing GitHub CLI for ${TARGETARCH}..." && \
+    GH_VERSION="2.83.1" && \
+    curl -L https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${TARGETARCH}.tar.gz -o /tmp/gh.tar.gz && \
+    tar -xzf /tmp/gh.tar.gz -C /tmp && \
+    cp /tmp/gh_${GH_VERSION}_linux_${TARGETARCH}/bin/gh /usr/local/bin/gh && \
+    chmod +x /usr/local/bin/gh && \
+    rm -rf /tmp/gh* && \
+    echo "GitHub CLI installed successfully" && \
+    gh --version
+
 # Install Fleet CLI
 RUN echo "Installing Fleet CLI for ${TARGETARCH}..." && \
     curl -L https://github.com/rancher/fleet/releases/download/v0.14.0/fleet-linux-${TARGETARCH} -o /usr/local/bin/fleet && \

@@ -1,84 +1,43 @@
 # Background Coding Agent (BCA)
 
-A platform for executing complex code transformations across multiple repositories using AI coding agents and natural language prompts.
+Execute AI-driven code transformations across multiple repositories using natural language prompts.
 
 ## ⚠️  Security Notice
 
-**CRITICAL: API tokens and credentials have very sensitive permissions!**
-
-Never commit tokens to source control. Always use environment variables or secure secret management. See [Security Best Practices](AGENTS.md#security-best-practices) for complete guidance.
+**Never commit API tokens to source control.** Use environment variables or secret managers. See [AGENTS.md](AGENTS.md#security-best-practices).
 
 ## Prerequisites
 
-Before using BCA, ensure you have:
-
-- **Kubernetes Cluster**: Local (k3d, minikube) or remote cluster
-- **kubectl**: Configured to access your cluster
-- **GitHub Token**: Personal Access Token with permissions:
-  - `Contents`: read/write (for git operations)
-  - `Pull requests`: read/write (for creating PRs)
-- **Copilot Token** (if using copilot-cli): Fine-grained PAT with:
-  - `Copilot Requests`: read/write
-  - Generate at: https://github.com/settings/personal-access-tokens/new
-- **Gemini API Key** (if using gemini-cli):
-  - Generate at: https://aistudio.google.com/apikey
-  - OR authenticate gemini CLI locally for OAuth
+- **Kubernetes cluster** (k3d, minikube, or remote)
+- **kubectl** configured
+- **GitHub Token** with `Contents` + `Pull requests` permissions
+- **Agent credentials:**
+  - Copilot: Fine-grained PAT with `Copilot Requests` permission
+  - Gemini: API key from https://aistudio.google.com/apikey
 
 ## Quick Start
 
-### 1. Install BCA
+### 1. Build BCA
 
 ```bash
-# Clone the repository
 git clone https://github.com/manno/background-coding-agent
 cd background-coding-agent
-
-# Build the CLI
 go build -o bca .
 ```
 
-### 2. Setup Credentials
-
-**For Copilot CLI:**
-```bash
-export GITHUB_TOKEN=ghp_your_git_pr_token      # For git/PR operations
-export COPILOT_TOKEN=github_pat_your_copilot   # For Copilot CLI
-```
-
-**For Gemini CLI (API Key):**
-```bash
-export GITHUB_TOKEN=ghp_your_git_pr_token      # For git/PR operations
-export GEMINI_API_KEY=your_gemini_key          # For Gemini CLI
-```
-
-**For Gemini CLI (OAuth):**
-```bash
-export GITHUB_TOKEN=ghp_your_git_pr_token      # For git/PR operations
-gemini auth                                     # Authenticate Gemini locally
-```
-
-### 3. Setup the Backend
+### 2. Setup Backend
 
 ```bash
-# For Copilot
+export GITHUB_TOKEN=ghp_xxx        # For git/PR operations
+export COPILOT_TOKEN=github_pat_xxx # OR
+export GEMINI_API_KEY=xxx           # Choose your agent
+
 bca setup --namespace bca-jobs
-
-# For Gemini with API key
-bca setup --namespace bca-jobs --gemini-api-key $GEMINI_API_KEY
-
-# For Gemini with OAuth
-bca setup --namespace bca-jobs --gemini-oauth
 ```
 
-This creates:
-- Kubernetes namespace: `bca-jobs`
-- Secret `bca-credentials` with your tokens
-- Environment ready for running coding agent jobs
+### 3. Create Change Definition
 
-### 4. Create a Change Definition
-
-Create `my-change.yaml`:
-
+`my-change.yaml`:
 ```yaml
 kind: Change
 apiVersion: v1
@@ -88,226 +47,154 @@ spec:
   - https://github.com/myorg/repo1
   - https://github.com/myorg/repo2
   agent: copilot-cli  # or gemini-cli
+  branch: main        # optional, defaults to main
 ```
 
-### 5. Apply the Change
+### 4. Apply
 
 ```bash
 bca apply my-change.yaml --namespace bca-jobs
 ```
 
-This will:
-1. Create one Kubernetes Job per repository
-2. Each job: clones repo → runs AI agent → creates pull request
-3. Monitor and report job status
-4. Jobs auto-cleanup after 1 hour
+Creates one job per repository: clone → transform → create PR.
 
 ## Commands
 
-### bca setup
+### setup
 
-Setup the Kubernetes backend with credentials.
-
-```bash
-bca setup --namespace <namespace> [options]
-```
-
-**Options:**
-- `--github-token` - GitHub token for git/PR (default: $GITHUB_TOKEN)
-- `--copilot-token` - Copilot token (default: $COPILOT_TOKEN, falls back to GITHUB_TOKEN)
-- `--gemini-api-key` - Gemini API key (default: $GEMINI_API_KEY)
-- `--gemini-oauth` - Copy OAuth creds from ~/.gemini/
-- `--kubeconfig` - Path to kubeconfig file
-
-**Examples:**
-```bash
-# Copilot with separate tokens
-bca setup --namespace prod --copilot-token $COPILOT_TOKEN
-
-# Gemini with API key
-bca setup --namespace dev --gemini-api-key $GEMINI_API_KEY
-
-# Gemini with OAuth
-bca setup --namespace dev --gemini-oauth
-```
-
-### bca apply
-
-Apply a Change definition to execute code transformations.
+Setup Kubernetes backend with credentials.
 
 ```bash
-bca apply <change-file> --namespace <namespace> [options]
+bca setup --namespace <ns> [--copilot-token | --gemini-api-key | --gemini-oauth]
 ```
 
-**Options:**
-- `--wait` - Wait for jobs to complete (default: true)
-- `--kubeconfig` - Path to kubeconfig file
+### apply
 
-**Examples:**
+Execute code transformations.
+
 ```bash
-# Apply and wait for completion
-bca apply my-change.yaml --namespace prod
-
-# Apply and return immediately
-bca apply my-change.yaml --namespace prod --wait=false
+bca apply <change-file> --namespace <ns> [--wait]
 ```
 
-## Change Definition Reference
+Options:
+- `--wait`: Wait for completion (default: true)
+
+## Change Definition
 
 ```yaml
 kind: Change
 apiVersion: v1
 spec:
-  # Natural language prompt (REQUIRED)
-  prompt: "Detailed description of code transformation task"
-
-  # Target repositories (REQUIRED)
-  repos:
-  - https://github.com/org/repo1
-  - https://github.com/org/repo2
-
-  # AI agent to use (REQUIRED)
-  agent: copilot-cli  # or gemini-cli
-
-  # Additional context (OPTIONAL)
-  agentsmd: https://example.com/agent-instructions.md
-  resources:
-  - https://example.com/docs/style-guide.md
-  - https://example.com/docs/architecture.md
-
-  # Custom runner image (OPTIONAL)
-  image: ghcr.io/manno/background-coder:latest
+  prompt: "Natural language description"       # REQUIRED
+  repos: ["https://github.com/org/repo"]      # REQUIRED
+  agent: copilot-cli                          # REQUIRED: copilot-cli or gemini-cli
+  branch: main                                 # optional, default: main
+  agentsmd: "https://example.com/agents.md"   # optional
+  resources: ["https://example.com/docs.md"]  # optional
+  image: ghcr.io/manno/background-coder:latest # optional
 ```
 
-### Fields
-
-- **prompt**: Natural language description of the transformation
-- **repos**: List of GitHub repository URLs to transform
-- **agent**: AI agent to use (`copilot-cli` or `gemini-cli`)
-- **agentsmd**: URL to markdown file with agent-specific instructions
-- **resources**: List of URLs to additional documentation
-- **image**: Container image for the runner (default: ghcr.io/manno/background-coder:latest)
-
-## How It Works
+## Architecture
 
 ```
-User creates Change → BCA creates K8s Jobs → Each Job:
-                                            ├─ Clones repository
-                                            ├─ Downloads resources
-                                            ├─ Runs AI coding agent
-                                            ├─ Creates pull request
-                                            └─ Auto-cleanup (1 hour)
+┌─────────────┐
+│   Change    │ User creates YAML definition
+└──────┬──────┘
+       │
+       v
+┌─────────────┐
+│  bca apply  │ Creates Kubernetes Jobs (one per repo)
+└──────┬──────┘
+       │
+       v
+┌───────────────────────────────────┐
+│  Kubernetes Job (per repository)  │
+│                                   │
+│  Init Container:                  │
+│  └─ fleet gitcloner (clone repo)  │
+│                                   │
+│  Main Container:                  │
+│  ├─ bca execute (run agent)       │
+│  └─ gh pr create (create PR)      │
+└───────────────────────────────────┘
 ```
 
-### Job Lifecycle
+**Init Container:** Clones repository using fleet gitcloner to shared volume  
+**Main Container:** Runs `bca execute --config <json>` with agent-specific logic  
+**Shared Volume:** EmptyDir at `/workspace` for passing repository between containers
 
-1. **Creation**: One job per repository
-2. **Execution**: Clone → Transform → PR creation
-3. **Monitoring**: Real-time status updates
-4. **Retry**: Up to 3 automatic retries on failure
-5. **Cleanup**: Jobs auto-delete 1 hour after completion
+## Job Execution Flow
 
-## Supported AI Agents
+1. **Init container** clones repo with `fleet gitcloner --branch main <repo> /workspace/repo`
+2. **Main container** receives JSON config via `$CONFIG` environment variable:
+   ```json
+   {
+     "agent": "copilot-cli",
+     "prompt": "Fix bugs",
+     "agentsmd": "https://...",
+     "resources": ["https://..."]
+   }
+   ```
+3. **bca execute** downloads resources and runs agent:
+   - Copilot: `copilot --add-dir /workspace --add-dir /tmp -p "$PROMPT" --allow-all-tools`
+   - Gemini: `gemini "$PROMPT"`
+4. **gh pr create** creates pull request with changes
+5. **Auto-cleanup** after 1 hour (TTL), max 3 retries
 
-### Copilot CLI
+## Agents
 
-**Requirements:**
-- GitHub token with "Copilot Requests" permission
-- Node.js v20+ in runner image
+| Agent | Command | Requirements |
+|-------|---------|--------------|
+| copilot-cli | `copilot` | GitHub token with Copilot Requests permission |
+| gemini-cli | `gemini` | Gemini API key OR OAuth authentication |
 
-**Example:**
-```yaml
-agent: copilot-cli
-```
-
-### Gemini CLI
-
-**Requirements:**
-- Gemini API key OR OAuth authentication
-- Node.js v20+ in runner image
-
-**Example with API key:**
-```yaml
-agent: gemini-cli
-```
-
-**Example with OAuth:**
-```bash
-# Authenticate locally first
-gemini auth
-# Then use --gemini-oauth during setup
-bca setup --gemini-oauth
-```
+Agent configuration in `internal/agent/config.go`.
 
 ## Troubleshooting
 
-### Authentication failures
-
-**Problem:** Git clone or PR creation fails
-
-**Solution:** Verify token permissions:
+**Jobs fail with authentication errors:**
 ```bash
-# Test GitHub token
-gh auth status
-
-# Verify token in cluster
-kubectl get secret bca-credentials -n <namespace> -o jsonpath='{.data}' | jq 'keys'
+kubectl get secret bca-credentials -n <namespace> -o yaml
+kubectl logs -n <namespace> <job-pod> --all-containers
 ```
 
-### Jobs accumulating in cluster
-
-**Problem:** Old jobs not cleaning up
-
-**Solution:** Jobs auto-delete after 1 hour (TTL=3600). To clean up immediately:
+**Clean up failed jobs:**
 ```bash
 kubectl delete jobs -n <namespace> --all
 ```
 
+**Check job status:**
+```bash
+kubectl get jobs -n <namespace>
+kubectl describe job <job-name> -n <namespace>
+```
+
 ## Development
 
-### Building from Source
-
+Build:
 ```bash
-# Build CLI
-./scripts/build-release.sh
-
-# Build runner image
-./scripts/build-runner-image.sh
-
-# Import to k3d for testing
-./scripts/import-image-k3d.sh
+./scripts/build-release.sh           # Build CLI binaries
+./scripts/build-runner-image.sh      # Build Docker image
+./scripts/import-image-k3d.sh        # Import to k3d cluster
 ```
 
-### Running Tests
-
+Test:
 ```bash
-# Unit tests
-go test ./internal/...
-
-# Integration tests (requires envtest)
-ginkgo -v ./tests/...
+go test ./internal/...               # Unit tests
+ginkgo -v ./tests/...                # Integration tests
 ```
 
-See [Development Guide](AGENTS.md) for detailed instructions.
+See [AGENTS.md](AGENTS.md) for detailed development guide.
 
-## Architecture
+## Files
 
-BCA uses a Kubernetes-native architecture:
+- `cmd/` - CLI commands (setup, apply, execute)
+- `internal/backend/` - Kubernetes job management
+- `internal/agent/` - Agent executor and configuration
+- `internal/change/` - Change definition parser
+- `Dockerfile` - Runner image with tools (gh, fleet, gemini, copilot)
+- `tests/` - Integration tests with envtest
 
-- **CLI**: User interface for setup and change application
-- **Backend**: Kubernetes controllers and job management
-- **Runner**: Container that executes transformations
-- **Agents**: AI coding assistants (Copilot, Gemini)
+## License
 
-## Security Best Practices
-
-🔐 **Token Security:**
-- Never commit tokens to source control
-- Use environment variables or secret managers
-- Rotate tokens regularly (90 days recommended)
-- Use separate tokens for dev/staging/production
-- Enable Kubernetes secret encryption at rest
-
-## Known Issues
-
-- **Private Repos**: Currently optimized for public repos (Fleet gitcloner supports auth)
+See LICENSE file.

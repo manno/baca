@@ -1,6 +1,6 @@
 # Background Coding Agent (BCA) - AI Assistant Guide
 
-This document provides guidance for AI coding assistants working on the Background Coding Agent project.
+This document provides comprehensive guidance for AI coding assistants working on the Background Coding Agent project.
 
 ## ⚠️  SECURITY WARNING
 
@@ -26,68 +26,112 @@ The tokens used by BCA have **very sensitive permissions**:
 
 ## Project Overview
 
-Background Coding Agent (BCA) is a platform that allows engineers to execute complex code transformations across multiple repositories using natural language prompts. It orchestrates coding agents (like gemini-cli or copilot-cli) through Kubernetes jobs.
+Background Coding Agent (BCA) is a platform that allows engineers to execute complex code transformations across multiple repositories using natural language prompts. It orchestrates coding agents (gemini-cli or copilot-cli) through Kubernetes jobs.
 
-## Architecture
+**Key Concept:** User creates a Change YAML → BCA creates K8s Jobs (one per repo) → Each job clones repo, runs AI agent, creates PR.
 
+## Current Architecture (December 2025)
+
+### Job Structure
+
+```yaml
+Pod:
+  initContainers:
+  - name: git-clone
+    image: ghcr.io/manno/background-coder:latest
+    command: fleet gitcloner --branch main $REPO_URL /workspace/repo
+    volumeMounts:
+    - name: workspace
+      mountPath: /workspace
+    envFrom:
+    - secretRef: bca-credentials
+  
+  containers:
+  - name: runner
+    image: ghcr.io/manno/background-coder:latest
+    command: |
+      cd /workspace/repo
+      git config --global user.name "BCA Bot"
+      bca execute --config "$CONFIG" --work-dir /workspace/repo
+      gh pr create --fill
+    env:
+    - name: CONFIG
+      value: '{"agent":"copilot-cli","prompt":"...","agentsmd":"...","resources":[...]}'
+    volumeMounts:
+    - name: workspace
+      mountPath: /workspace
+    envFrom:
+    - secretRef: bca-credentials
+  
+  volumes:
+  - name: workspace
+    emptyDir: {}
 ```
-   ┌─────────────┐
-   │  CLI (bca)  │  - User interface
-   └──────┬──────┘
-          │
-          v
-┌─────────────────────┐
-│  Change Definition  │  - YAML manifest describing transformation
-└─────────┬───────────┘
-          │
-          v
-┌──────────────────────┐
-│ Kubernetes Backend   │  - Creates jobs per repository
-└─────────┬────────────┘
-          │
-          v
-┌──────────────────────┐
-│  Execution Runner    │  - Runs in K8s job
-│  - Clone repo        │
-│  - Download resources│
-│  - Run coding agent  │
-│  - Create PR         │
-└──────────────────────┘
-```
+
+**Why Init Containers?**
+- Separation of concerns: clone vs. execute
+- Init container shares /workspace volume with main container
+- Standard Kubernetes pattern for setup tasks
+
+**Why JSON Config?**
+- Protects special characters (quotes, $, newlines) in prompts and resources
+- Single environment variable instead of multiple
+- No shell escaping issues
+- Easy to serialize/deserialize
+
+### Execution Flow
+
+1. **User** creates Change YAML with prompt, repos, agent
+2. **bca apply** creates one Kubernetes Job per repository
+3. **Init Container** runs `fleet gitcloner --branch main $REPO /workspace/repo`
+4. **Main Container** receives JSON config via `$CONFIG` environment variable
+5. **bca execute** parses JSON, downloads resources (agentsmd, resources), runs agent
+6. **Agent** (copilot or gemini) executes transformation
+7. **gh pr create** creates pull request with changes
+8. **Job cleanup** happens automatically after 1 hour (TTL)
+
+### Key Design Decisions
+
+- **No ConfigMap**: Pass config as JSON env var (simpler, no extra resource)
+- **fleet gitcloner**: Handles git auth automatically from GITHUB_TOKEN
+- **Single JSON**: Avoids shell escaping nightmare with multiple env vars
+- **Execute command**: Knows how to run each agent (copilot vs gemini)
+- **Init container**: Isolation, reusable pattern, clear separation
 
 ## Project Structure
 
 ```
 .
 ├── cmd/                    # CLI commands
-│   ├── root.go            # Root command, config, logging
-│   ├── setup.go           # Backend setup
-│   ├── apply.go           # Apply Change definitions
-│   ├── clone.go           # Git cloning (uses fleet gitcloner)
-│   └── execute.go         # Execute coding agents
+│   ├── root.go            # Root command, config, logging setup
+│   ├── setup.go           # Backend setup (namespace, secrets)
+│   ├── apply.go           # Apply Change definitions (create jobs)
+│   └── execute.go         # Execute coding agents (runs in job)
 ├── internal/              # Internal packages
-│   ├── agent/             # Agent configuration
+│   ├── agent/             # Agent configuration and execution
 │   │   ├── config.go      # Agent registry (name → command mapping)
-│   │   └── executor.go    # Download resources, run agent
+│   │   └── executor.go    # Downloads resources, runs agent
 │   ├── backend/           # Kubernetes backend
 │   │   ├── client.go      # K8s client setup
-│   │   └── kubernetes.go  # Backend implementation
+│   │   ├── kubernetes.go  # Backend implementation
+│   │   └── apply.go       # Job creation logic
 │   ├── change/            # Change definition
 │   │   ├── types.go       # Change struct
 │   │   └── parser.go      # YAML parser & validation
 │   └── git/               # Git operations
-│       └── clone.go       # Clone wrapper (calls fleet)
+│       └── clone.go       # Clone wrapper (unused, kept for reference)
 ├── tests/                 # Integration tests
 │   ├── utils/             # Test utilities (envtest setup)
 │   └── backend/           # Backend integration tests
 │       ├── suite_test.go  # Ginkgo suite setup
-│       └── backend_test.go # Test specs
-├── runner-image/          # Docker runner image
-│   └── Dockerfile         # Multi-arch runner image
+│       ├── setup_test.go  # Setup command tests
+│       └── apply_test.go  # Apply command tests
+├── Dockerfile             # Multi-arch runner image
 ├── scripts/               # Build and utility scripts
 ├── main.go                # CLI entrypoint
 ├── SPEC01.md             # Original specification
-└── PROGRESS.md           # Implementation progress
+├── README.md             # User documentation
+└── STATUS_SUMMARY.md     # Current status and progress
 ```
 
 ## Key Technologies
@@ -97,6 +141,7 @@ Background Coding Agent (BCA) is a platform that allows engineers to execute com
 - **Logging**: slog (structured JSON logging)
 - **Kubernetes**: controller-runtime client
 - **Testing**: Ginkgo v2 + Gomega + envtest
+- **Docker**: Multi-arch builds (amd64, arm64)
 
 ## Development Principles
 
@@ -128,35 +173,68 @@ logger.Error("failed", "error", err)
 kind: Change
 apiVersion: v1
 spec:
-  agentsmd: https://example.com/agents.md  # Agent instructions
-  resources:                                # Additional documentation
-  - https://example.com/docs/guide.md
-  prompt: "Your transformation task"        # Natural language prompt
-  repos:                                    # Target repositories
+  prompt: "Your transformation task"        # REQUIRED: Natural language prompt
+  repos:                                    # REQUIRED: Target repositories
   - https://github.com/org/repo1
   - https://github.com/org/repo2
-  agent: gemini-cli                         # Logical agent name
-  image: ghcr.io/example/runner:latest     # Optional container image
+  agent: copilot-cli                        # REQUIRED: gemini-cli or copilot-cli
+  branch: main                              # OPTIONAL: default is "main"
+  agentsmd: https://example.com/agents.md   # OPTIONAL: Agent instructions
+  resources:                                # OPTIONAL: Additional documentation
+  - https://example.com/docs/guide.md
+  image: ghcr.io/manno/background-coder:latest  # OPTIONAL: Custom runner image
 ```
+
+**Field Details:**
+- `prompt`: Natural language description - can contain quotes, special chars (protected by JSON)
+- `repos`: List of full GitHub URLs
+- `agent`: Logical agent name (maps to command via `internal/agent/config.go`)
+- `branch`: Git branch to check out (defaults to "main")
+- `agentsmd`: URL downloaded to `agents.md` in repo root
+- `resources`: URLs downloaded to `resource-0.md`, `resource-1.md`, etc.
+- `image`: Override default runner image
 
 ### Agent Configuration
 
-Agents use a configuration system that maps logical names to actual commands:
+**Location:** `internal/agent/config.go`
 
-| Logical Name | Command | Required Credentials |
-|-------------|---------|---------------------|
-| `gemini-cli` | `gemini` | `GOOGLE_API_KEY` |
-| `copilot-cli` | `copilot` | `GITHUB_TOKEN` |
+Maps logical agent names to actual commands and required credentials:
 
-**Configuration:** `internal/agent/config.go`
+```go
+var agentConfig = map[string]AgentConfig{
+    "gemini-cli": {
+        Name:        "gemini-cli",
+        Command:     "gemini",
+        Credentials: []string{"GEMINI_API_KEY"},
+    },
+    "copilot-cli": {
+        Name:        "copilot-cli",
+        Command:     "copilot",
+        Credentials: []string{"COPILOT_TOKEN"},
+    },
+}
+```
 
-When you specify `agent: gemini-cli` in the Change definition, the job will execute the `gemini` command with the appropriate credentials injected.
+**Agent Execution:** `internal/agent/executor.go`
+
+```go
+// Copilot: Combined command with all args
+copilot --add-dir /workspace --add-dir /tmp -p "$PROMPT" --allow-all-tools
+
+// Gemini: Simple command
+gemini "$PROMPT"
+```
+
+**Why separate config?**
+- Agents may have different invocation patterns
+- Credentials can be different per agent
+- Easy to add new agents without touching job creation code
 
 ## Common Tasks
 
 ### Adding a New Agent
 
-1. Update `internal/agent/config.go`:
+1. **Update `internal/agent/config.go`:**
    ```go
    "my-agent": {
        Name:        "my-agent",
@@ -164,83 +242,68 @@ When you specify `agent: gemini-cli` in the Change definition, the job will exec
        Credentials: []string{"MY_API_KEY"},
    }
    ```
-2. Update setup command to handle new credentials
-3. Update job creation to inject agent-specific credentials
-4. Test with `agent: my-agent` in Change YAML
 
-### Adding a New Command
+2. **Update `internal/agent/executor.go`:**
+   ```go
+   case "my-agent":
+       cmd = exec.CommandContext(ctx, agentCommand, c.Spec.Prompt)
+   ```
+
+3. **Update `cmd/setup.go`** to handle new credentials if needed
+
+4. **Test** with `agent: my-agent` in Change YAML
+
+### Adding a New CLI Command
 
 1. Create `cmd/newcommand.go`
-2. Define cobra.Command with Use, Short, Long, RunE
+2. Define `cobra.Command` with Use, Short, Long, RunE
 3. Add flags with `cmd.Flags().String(...)`
 4. Register in `init()` with `rootCmd.AddCommand(newCmd)`
 5. Implement business logic in `internal/` package
 
-### Adding to Kubernetes Backend
+### Modifying Job Structure
 
-1. Update `internal/backend/client.go` scheme if new K8s types needed
-2. Add methods to `KubernetesBackend` in `internal/backend/`
-3. Use `k.client.Create/Get/List/Update/Delete` for K8s operations
-4. Always check errors and log appropriately
+**File:** `internal/backend/apply.go`
+
+Job structure is created in `createJob()` function. Key areas:
+
+- **Init container**: Clone logic
+- **Main container**: Execute command
+- **Volumes**: Shared workspace, secrets, etc.
+- **Environment**: JSON config, credentials
+- **Labels**: For querying and management
+- **TTL/Backoff**: Cleanup and retry logic
+
+**Important:** When adding volumes, use `append()` not `=` to preserve existing volumes (e.g., gemini OAuth).
 
 ### Working with Change Definitions
 
 1. Update types in `internal/change/types.go`
 2. Update validation in `internal/change/parser.go`
 3. YAML tags should match snake_case field names
+4. Add JSON tags for execute command serialization
 
 ## Testing
 
-See [tests/README.md](tests/README.md) for detailed testing documentation.
+**See `tests/README.md` for detailed testing documentation.**
 
 ### Quick Start
 
-**Integration Tests with k3d** (use for inspecting actual job results):
+**Integration Tests with envtest** (default, fast):
 ```bash
-# Use existing k3d cluster
+ginkgo -v ./tests/...
+```
+
+**Integration Tests with k3d** (for inspecting actual jobs):
+```bash
 export CI_USE_EXISTING_CLUSTER=true
 ginkgo -v ./tests/...
 ```
 
-**Unit Tests** (no infrastructure needed):
+**Unit Tests**:
 ```bash
 go test ./internal/...
 ```
-
-**Manual Testing with k3d**:
-```bash
-go build -o bca .
-
-# Setup namespace and credentials
-./bca setup --namespace test --github-token ghp_xxx
-
-# Apply a Change (creates jobs)
-./bca apply change.yaml --namespace test --wait
-
-# Inspect job results
-kubectl get jobs -n test
-kubectl logs -n test job/bca-<repo-name>
-```
-
-### Important Testing Notes
-
-**⚠️ Docker Image Loading for k3d:**
-
-When you update the Docker runner image, you MUST load it into k3d:
-
-```bash
-# Build new image
-./scripts/build-release.sh
-./scripts/build-runner-image.sh
-# Import into k3d cluster (required!)
-./scripts/import-runner-image.sh
-```
-
-**Test Modes:**
-- **envtest (default)**: Use for running integration tests. Fast, isolated, ephemeral API server.
-- **k3d cluster**: Use for inspecting results, debugging actual job execution, testing with real images.
-
-Set `CI_USE_EXISTING_CLUSTER=true` to use k3d cluster instead of envtest.
 
 ### Test Organization
 
@@ -277,14 +340,260 @@ var _ = Describe("Backend", func() {
 })
 ```
 
-## Working with This Codebase
+### Important Testing Notes
 
-### Making Changes
+**⚠️ Docker Image Loading for k3d:**
+
+When you update the Docker runner image, you MUST load it into k3d:
+
+```bash
+# Build new image
+./scripts/build-runner-image.sh
+
+# Import into k3d cluster (required!)
+./scripts/import-image-k3d.sh
+```
+
+**Test Modes:**
+- **envtest (default)**: Fast, isolated, ephemeral API server. Use for running integration tests.
+- **k3d cluster**: Use for inspecting results, debugging actual job execution, testing with real images.
+
+Set `CI_USE_EXISTING_CLUSTER=true` to use k3d cluster instead of envtest.
+
+## Docker Runner Image
+
+**Base Image:** `catthehacker/ubuntu:act-latest`  
+**Location:** `Dockerfile`  
+**Registry:** `ghcr.io/manno/background-coder:latest`
+
+**Includes:**
+- Node.js v20.19.6 (upgraded from v18 for gemini/copilot)
+- `gh` CLI v2.63.1 (GitHub CLI for PR creation)
+- `fleet` v0.14.0 (Fleet gitcloner for repo cloning)
+- `@google/gemini-cli` (npm package)
+- `@github/copilot` (npm package)
+- `bca` binary (copied during build)
+
+**Build Process:**
+```bash
+./scripts/build-release.sh           # Build CLI binaries (amd64 + arm64)
+./scripts/build-runner-image.sh      # Build multi-arch Docker image
+./scripts/import-image-k3d.sh        # Import to k3d for local testing
+```
+
+**Multi-arch:** Builds for both linux/amd64 and linux/arm64 using buildx.
+
+**Important:** ARG TARGETARCH must be declared before RUN commands that use it (not ONBUILD).
+
+## Kubernetes Backend
+
+### Client Setup
+
+**File:** `internal/backend/client.go`
+
+Creates controller-runtime client with custom scheme including Batch/v1 for Jobs.
+
+### Backend Implementation
+
+**File:** `internal/backend/kubernetes.go`
+
+`KubernetesBackend` struct holds client, namespace, and logger.
+
+**Default Image:** `ghcr.io/manno/background-coder:latest`
+
+### Apply Logic
+
+**File:** `internal/backend/apply.go`
+
+**Key Functions:**
+- `ApplyChange()`: Main entry point, creates jobs for each repo
+- `createJob()`: Builds Job spec with init container and main container
+- `generateJobName()`: Creates unique job names with random suffix
+- `monitorJobs()`: Watches job status when --wait flag is used
+
+**Job Naming:**
+- Format: `bca-{sanitized-repo}-{random-8-chars}`
+- Random suffix prevents conflicts on retry
+- Sanitized repo name from URL (max 63 chars K8s limit)
+
+**Job Configuration:**
+- TTLSecondsAfterFinished: 3600 (1 hour cleanup)
+- BackoffLimit: 3 (max retries)
+- RestartPolicy: Never
+- ImagePullPolicy: IfNotPresent (for local testing)
+
+## Credentials Management
+
+### Setup Command
+
+**File:** `cmd/setup.go`
+
+Creates namespace and `bca-credentials` secret with tokens:
+- `GITHUB_TOKEN`: For git clone and PR creation
+- `COPILOT_TOKEN`: For Copilot CLI (optional, falls back to GITHUB_TOKEN)
+- `GEMINI_API_KEY`: For Gemini CLI (optional)
+- `GEMINI_*`: OAuth files if using `--gemini-oauth` (optional)
+
+**Secret Structure:**
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bca-credentials
+stringData:
+  GITHUB_TOKEN: "ghp_..."
+  COPILOT_TOKEN: "github_pat_..."  # optional
+  GEMINI_API_KEY: "AIza..."        # optional
+  # OAuth files as base64 if --gemini-oauth used
+```
+
+### In Jobs
+
+Credentials are injected via `envFrom`:
+```yaml
+envFrom:
+- secretRef:
+    name: bca-credentials
+```
+
+## Execute Command
+
+**File:** `cmd/execute.go`
+
+Accepts `--config` flag with JSON string containing:
+```json
+{
+  "agent": "copilot-cli",
+  "prompt": "Fix bugs with \"quotes\" and $VARS",
+  "agentsmd": "https://example.com/agents.md",
+  "resources": ["https://example.com/doc.md"]
+}
+```
+
+Parses JSON into `change.ChangeSpec`, creates `change.Change`, passes to executor.
+
+**Why JSON?**
+- Shell escaping is nightmare with multiple env vars containing special chars
+- Single env var = simpler
+- Easy to debug (just echo $CONFIG)
+- No risk of quote/dollar/backslash issues
+
+## Error Handling Patterns
+
+```go
+// Log and return wrapped error
+if err != nil {
+    logger.Error("operation failed", "error", err)
+    return fmt.Errorf("failed to do thing: %w", err)
+}
+
+// Create resources
+if err := k.client.Create(ctx, obj); err != nil {
+    logger.Error("failed to create resource", "kind", obj.GetObjectKind(), "error", err)
+    return fmt.Errorf("failed to create kubernetes resource: %w", err)
+}
+```
+
+## Common Patterns
+
+### Creating K8s Resources
+```go
+obj := &corev1.Namespace{
+    ObjectMeta: metav1.ObjectMeta{
+        Name: "example",
+    },
+}
+err := k.client.Create(ctx, obj)
+```
+
+### Logging with Context
+```go
+logger.Info("operation starting",
+    "namespace", namespace,
+    "resource", resourceName)
+```
+
+### Reading Files
+```go
+data, err := os.ReadFile(path)
+if err != nil {
+    return fmt.Errorf("failed to read file: %w", err)
+}
+```
+
+### HTTP Downloads
+```go
+req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+resp, err := http.DefaultClient.Do(req)
+defer resp.Body.Close()
+io.Copy(out, resp.Body)
+```
+
+## Troubleshooting
+
+### Build Issues
+
+```bash
+go mod tidy          # Fix module issues
+go build .           # Try building
+go vet ./...         # Check for issues
+goimports -w .       # Fix formatting
+```
+
+### Test Issues
+
+```bash
+# Check envtest
+./scripts/setup-envtest.sh
+
+# Use k3d for debugging
+export CI_USE_EXISTING_CLUSTER=true
+kubectl get pods -n test --watch
+kubectl logs -n test <pod-name> -c git-clone
+kubectl logs -n test <pod-name> -c runner
+```
+
+### Image Issues
+
+```bash
+# Rebuild and import
+./scripts/build-runner-image.sh
+./scripts/import-image-k3d.sh
+
+# Check image in k3d
+docker exec k3d-upstream-server-0 crictl images | grep background-coder
+```
+
+### Job Debugging
+
+```bash
+# List jobs
+kubectl get jobs -n <namespace>
+
+# Describe job
+kubectl describe job <job-name> -n <namespace>
+
+# Get pod
+kubectl get pods -n <namespace> -l job-name=<job-name>
+
+# Logs from init container
+kubectl logs -n <namespace> <pod-name> -c git-clone
+
+# Logs from main container
+kubectl logs -n <namespace> <pod-name> -c runner
+
+# Check config
+kubectl get job <job-name> -n <namespace> -o yaml | grep CONFIG -A20
+```
+
+## Making Changes
+
+### Workflow
 1. **Read SPEC01.md** - Understand requirements
-2. **Check PROGRESS.md** - See what's done/planned
+2. **Check STATUS_SUMMARY.md** - See what's done/planned
 3. **Follow existing patterns** - Consistency is key
 4. **Test locally** - Build and run before committing
-5. **Update PROGRESS.md** - Document significant changes
+5. **Update STATUS_SUMMARY.md** - Document significant changes
 
 ### Code Review Checklist
 - [ ] Follows existing code structure and patterns
@@ -296,10 +605,10 @@ var _ = Describe("Backend", func() {
 - [ ] Integration tests pass: `ginkgo -v ./tests/...`
 - [ ] Minimal, targeted changes (surgical approach)
 
-## Current Status
+## Current Status (December 2025)
 
 ### ✅ Completed
-- CLI framework (setup, apply, clone, execute)
+- CLI framework (setup, apply, execute)
 - Change definition parser with validation
 - Kubernetes backend with job creation and monitoring
 - Agent configuration system (logical name → command mapping)
@@ -309,143 +618,39 @@ var _ = Describe("Backend", func() {
 - Docker runner image with multi-arch support
 - Integration test infrastructure (envtest + k3d modes)
 - ImagePullPolicy support for local testing
-- Per-agent credential injection (starting with gemini-cli)
-- Node.js version update for gemini compatibility
+- Per-agent credential injection
 - Authentication system (all agents)
 - Job creation and monitoring
 - Secret management
-- Git cloning with credentials
+- Git cloning with credentials (init container)
 - Job cleanup (TTL: 1 hour, BackoffLimit: 3)
-- Integration tests (7/7 passing)
+- Integration tests (8/8 passing)
+- JSON config for execute command
+- Init container architecture
+- Branch support (default: main)
+- Copilot single command invocation
+- GitHub CLI in Docker image
+- Volume mount fixes for gemini OAuth
 
-See PROGRESS.md for detailed next steps and TODO items.
+### Current Architecture Highlights
 
-## Docker Image Building
-
-```bash
-# Build for current architecture
-./scripts/build-runner-image.sh
-
-# Import to k3d for testing
-./scripts/import-runner-image.sh
-```
-
-### Base Image Details
-- Base: `catthehacker/ubuntu:act-latest`
-- Upgraded Node.js: `/usr/bin/node` (v20.19.6)
-
-### Common Patterns
-
-#### Creating K8s Resources
-```go
-obj := &corev1.Namespace{
-    ObjectMeta: metav1.ObjectMeta{
-        Name: "example",
-    },
-}
-err := k.client.Create(ctx, obj)
-```
-
-#### Logging with Context
-```go
-logger.Info("operation starting",
-    "namespace", namespace,
-    "resource", resourceName)
-```
-
-#### Error Handling
-```go
-if err != nil {
-    logger.Error("operation failed", "error", err)
-    return fmt.Errorf("failed to do thing: %w", err)
-}
-```
-
-## Kubernetes Job Pattern
-
-The execution flow:
-1. User runs `bca apply change.yaml` with Change definition
-2. Backend creates one K8s Job per repository
-3. Each Job runs with runner image containing:
-   - `fleet gitcloner` to clone repository (uses GITHUB_TOKEN)
-   - `curl` to download agents.md and resources
-   - Agent command (`gemini` or `copilot`) to execute transformation
-   - `gh` tool to create pull request
-4. Jobs are monitored for completion/failure with `--wait` flag
-5. Results are reported back to user
-
-**Job Script Example:**
-```bash
-set -e && \
-cd /workspace && \
-fleet gitcloner $REPO_URL ./repo && \
-cd ./repo && \
-curl -L -o agents.md 'https://...' && \
-gemini "$PROMPT" && \
-gh pr create --fill
-```
-
-**Credentials:**
-- `GITHUB_TOKEN`: From `bca-credentials` secret (for git clone and gh CLI)
-- `GOOGLE_API_KEY`: To be injected for gemini-cli agent
-- Agent-specific credentials: Configured in `internal/agent/config.go`
+- **Init container** pattern for git cloning
+- **JSON config** to protect special characters
+- **Execute command** knows how to run each agent
+- **Shared workspace** via EmptyDir volume
+- **Multi-arch** Docker builds (amd64, arm64)
+- **8/8 tests passing** (unit + integration)
 
 ## Resources
 
 - **SPEC01.md**: Original specification and requirements
-- **PROGRESS.md**: Detailed implementation progress and recent updates
+- **README.md**: User documentation
+- **STATUS_SUMMARY.md**: Current status and progress
 - **tests/README.md**: Comprehensive testing documentation
 - **Fleet Gitcloner**: `github.com/rancher/fleet` - Git cloning with authentication
 - **Controller-Runtime**: `sigs.k8s.io/controller-runtime` - K8s client library
 - **Cobra**: `github.com/spf13/cobra` - CLI framework
 - **Ginkgo**: Testing framework for integration tests
-
-## Security Best Practices
-
-### Token Management
-
-**Storage:**
-- ✅ Environment variables (local development)
-- ✅ Kubernetes secrets with encryption at rest (production)
-- ✅ External secret managers (Vault, AWS Secrets Manager, etc.)
-- ❌ Never in source code, even in comments
-- ❌ Never in container images
-- ❌ Never in logs or error messages
-
-**Usage:**
-```bash
-# Good: Environment variable
-export GITHUB_TOKEN=$(cat ~/.secrets/github-token)
-./bca setup
-
-# Bad: Inline token
-./bca setup --github-token ghp_actualtoken123  # DON'T DO THIS
-
-# Good: From secret manager
-export GITHUB_TOKEN=$(vault kv get -field=token secret/bca/github)
-./bca setup
-```
-
-### Token Permissions Reference
-
-**GITHUB_TOKEN**
-
-Authenticate with a Personal Access Token (PAT)
-The minimum required scopes for the token are: repo, read:org, and gist
-
-
-**COPILOT_TOKEN:**
-
-Visit https://github.com/settings/personal-access-tokens/new
-Under "Permissions," click "add permissions" and select "Copilot Requests"
-
-**GEMINI_API_KEY:**
-```
-Permissions managed at: https://aistudio.google.com/apikey
-- API key provides full access to Gemini API
-- Use quotas/rate limits to prevent abuse
-- Monitor usage through Google Cloud Console
-```
 
 ## Questions?
 
@@ -461,3 +666,6 @@ When uncertain:
 - **Controller-Runtime**: v0.22.4
 - **Kubernetes Client**: v0.34.2
 - **Cobra**: v1.10.1
+- **Node.js (in Docker)**: v20.19.6
+- **gh CLI**: v2.63.1
+- **fleet**: v0.14.0

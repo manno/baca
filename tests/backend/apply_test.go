@@ -153,7 +153,7 @@ var _ = Describe("Backend Apply", func() {
 			err = k8sClient.List(ctx, jobList, client.InNamespace(namespace))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(jobList.Items).To(HaveLen(1))
-			Expect(jobList.Items[0].Spec.Template.Spec.Containers[0].Image).To(Equal("ghcr.io/manno/background-coding-agent:latest"))
+			Expect(jobList.Items[0].Spec.Template.Spec.Containers[0].Image).To(Equal("ghcr.io/manno/background-coder:latest"))
 		})
 
 		It("can get job status", func() {

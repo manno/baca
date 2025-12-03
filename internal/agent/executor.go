@@ -88,19 +88,34 @@ func (e *Executor) downloadFile(ctx context.Context, url, dest string) error {
 func (e *Executor) runAgent(ctx context.Context, c *change.Change) error {
 	e.logger.Info("running coding agent", "agent", c.Spec.Agent, "prompt", c.Spec.Prompt)
 
+	agentCommand := GetCommand(c.Spec.Agent)
+	
 	var cmd *exec.Cmd
+	
 	switch c.Spec.Agent {
-	case "gemini-cli", "copilot-cli":
-		cmd = exec.CommandContext(ctx, c.Spec.Agent, c.Spec.Prompt)
+	case "copilot-cli":
+		// For copilot-cli, combine all args: add directories, prompt, and allow tools
+		e.logger.Info("running copilot in interactive mode")
+		cmd = exec.CommandContext(ctx, agentCommand, 
+			"--add-dir", "/workspace", 
+			"--add-dir", "/tmp",
+			"-p", c.Spec.Prompt,
+			"--allow-all-tools")
+		
+	case "gemini-cli":
+		// For gemini-cli, pass prompt directly
+		cmd = exec.CommandContext(ctx, agentCommand, c.Spec.Prompt)
+		
 	default:
 		return fmt.Errorf("unsupported agent: %s", c.Spec.Agent)
 	}
-
+	
 	cmd.Dir = e.workDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 
+	e.logger.Info("executing agent command")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("agent execution failed: %w", err)
 	}

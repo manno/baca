@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/manno/background-coding-agent/internal/agent"
 	"github.com/manno/background-coding-agent/internal/change"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -51,31 +51,82 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 		image = DefaultImage
 	}
 
+	// Shared volume for repository
+	sharedVolume := corev1.Volume{
+		Name: "workspace",
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	}
+
+	workspaceMount := corev1.VolumeMount{
+		Name:      "workspace",
+		MountPath: "/workspace",
+	}
+
+	// Init container: Clone repository with fleet
+	branch := c.Spec.Branch
+	if branch == "" {
+		branch = "main"
+	}
+	
+	initContainer := corev1.Container{
+		Name:            "git-clone",
+		Image:           image,
+		ImagePullPolicy: corev1.PullIfNotPresent,
+		Command: []string{
+			"sh", "-c",
+			fmt.Sprintf("fleet gitcloner --branch %s %s /workspace/repo", branch, repoURL),
+		},
+		VolumeMounts: []corev1.VolumeMount{workspaceMount},
+		EnvFrom: []corev1.EnvFromSource{
+			{
+				SecretRef: &corev1.SecretEnvSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: "bca-credentials",
+					},
+				},
+			},
+		},
+	}
+
+	// Build JSON config for execute command
+	configJSON, err := json.Marshal(c.Spec)
+	if err != nil {
+		k.logger.Error("failed to marshal config to JSON", "error", err)
+		// Fallback to empty but this shouldn't happen
+		configJSON = []byte("{}")
+	}
+
+	// Main container: Run bca execute with agent
 	container := corev1.Container{
 		Name:            "runner",
 		Image:           image,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Command: []string{
-			"/bin/sh",
-			"-c",
-			k.buildJobScript(c, repoURL),
+			"sh", "-c",
+			`set -e
+cd /workspace/repo
+git config --global user.email "bca@example.com"
+git config --global user.name "BCA Bot"
+# Save original GITHUB_TOKEN for gh pr create
+SAVED_GITHUB_TOKEN="${GITHUB_TOKEN}"
+# Use COPILOT_TOKEN for copilot if available
+export GITHUB_TOKEN="${COPILOT_TOKEN:-$GITHUB_TOKEN}"
+bca execute --config "$CONFIG" --work-dir /workspace/repo
+# Restore original GITHUB_TOKEN for gh pr create
+export GITHUB_TOKEN="${SAVED_GITHUB_TOKEN}"
+gh pr create --fill`,
 		},
+		VolumeMounts: []corev1.VolumeMount{workspaceMount},
 		Env: []corev1.EnvVar{
+			{
+				Name:  "CONFIG",
+				Value: string(configJSON),
+			},
 			{
 				Name:  "REPO_URL",
 				Value: repoURL,
-			},
-			{
-				Name:  "AGENT",
-				Value: c.Spec.Agent,
-			},
-			{
-				Name:  "AGENTS_MD",
-				Value: c.Spec.AgentsMD,
-			},
-			{
-				Name:  "PROMPT",
-				Value: c.Spec.Prompt,
 			},
 		},
 		EnvFrom: []corev1.EnvFromSource{
@@ -90,39 +141,38 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 	}
 
 	podSpec := corev1.PodSpec{
-		RestartPolicy: corev1.RestartPolicyNever,
-		Containers:    []corev1.Container{container},
+		RestartPolicy:  corev1.RestartPolicyNever,
+		InitContainers: []corev1.Container{initContainer},
+		Containers:     []corev1.Container{container},
+		Volumes:        []corev1.Volume{sharedVolume},
 	}
 
 	// Mount gemini OAuth files if using gemini-cli
 	if c.Spec.Agent == "gemini-cli" {
-		// Check if we have gemini OAuth files in the secret (not API key)
-		container.VolumeMounts = []corev1.VolumeMount{
-			{
-				Name:      "gemini-oauth",
-				MountPath: "/root/.gemini",
-				ReadOnly:  true,
-			},
-		}
+		// Add gemini OAuth volume mount to the container
+		container.VolumeMounts = append(container.VolumeMounts, corev1.VolumeMount{
+			Name:      "gemini-oauth",
+			MountPath: "/root/.gemini",
+			ReadOnly:  true,
+		})
 		podSpec.Containers[0] = container
 
-		podSpec.Volumes = []corev1.Volume{
-			{
-				Name: "gemini-oauth",
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: "bca-credentials",
-						Items: []corev1.KeyToPath{
-							{Key: "GEMINI_oauth_creds.json", Path: "oauth_creds.json", Mode: int32Ptr(0600)},
-							{Key: "GEMINI_google_accounts.json", Path: "google_accounts.json", Mode: int32Ptr(0600)},
-							{Key: "GEMINI_installation_id", Path: "installation_id", Mode: int32Ptr(0600)},
-							{Key: "GEMINI_settings.json", Path: "settings.json", Mode: int32Ptr(0600)},
-						},
-						Optional: boolPtr(true), // Optional in case using API key instead
+		// Add gemini OAuth volume to pod volumes
+		podSpec.Volumes = append(podSpec.Volumes, corev1.Volume{
+			Name: "gemini-oauth",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: "bca-credentials",
+					Items: []corev1.KeyToPath{
+						{Key: "GEMINI_oauth_creds.json", Path: "oauth_creds.json", Mode: int32Ptr(0600)},
+						{Key: "GEMINI_google_accounts.json", Path: "google_accounts.json", Mode: int32Ptr(0600)},
+						{Key: "GEMINI_installation_id", Path: "installation_id", Mode: int32Ptr(0600)},
+						{Key: "GEMINI_settings.json", Path: "settings.json", Mode: int32Ptr(0600)},
 					},
+					Optional: boolPtr(true), // Optional in case using API key instead
 				},
 			},
-		}
+		})
 	}
 
 	job := &batchv1.Job{
@@ -150,54 +200,6 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 	return job
 }
 
-func (k *KubernetesBackend) buildJobScript(c *change.Change, repoURL string) string {
-	// Get agent command from configuration
-	agentCommand := agent.GetCommand(c.Spec.Agent)
-
-	script := []string{
-		"set -e",
-		"cd /workspace",
-		// Configure git to use GITHUB_TOKEN for authentication
-		"git config --global credential.helper store",
-		"echo \"https://x-access-token:${GITHUB_TOKEN}@github.com\" > ~/.git-credentials",
-		"chmod 600 ~/.git-credentials",
-		"git config --global user.email \"bca@example.com\"",
-		"git config --global user.name \"BCA Bot\"",
-	}
-
-	// Clone repository with optional branch (defaults to 'main')
-	branch := c.Spec.Branch
-	if branch == "" {
-		branch = "main"
-	}
-	cloneCmd := fmt.Sprintf("fleet gitcloner --branch %s $REPO_URL ./repo", branch)
-	script = append(script, cloneCmd, "cd ./repo")
-
-	// Download agents.md and resources
-	if c.Spec.AgentsMD != "" {
-		script = append(script, fmt.Sprintf("curl -L -o agents.md '%s'", c.Spec.AgentsMD))
-	}
-
-	for i, res := range c.Spec.Resources {
-		script = append(script, fmt.Sprintf("curl -L -o resource-%d.md '%s'", i, res))
-	}
-
-	// Execute the coding agent with the mapped command
-	if c.Spec.Agent == "copilot-cli" {
-		// For copilot-cli, prefer COPILOT_TOKEN if available, otherwise use GITHUB_TOKEN
-		script = append(script, "export GITHUB_TOKEN=${COPILOT_TOKEN:-$GITHUB_TOKEN}")
-		// Run copilot in interactive mode with prompt
-		script = append(script, fmt.Sprintf("%s --add-dir /workspace --add-dir /tmp --allow-all-tools -p \"$PROMPT\"", agentCommand))
-	} else {
-		// For other agents (gemini-cli), pass prompt directly
-		script = append(script, fmt.Sprintf("%s \"$PROMPT\"", agentCommand))
-	}
-
-	// Create pull request (restore GITHUB_TOKEN for gh CLI if we changed it)
-	script = append(script, "gh pr create --fill")
-
-	return strings.Join(script, " && ")
-}
 
 func (k *KubernetesBackend) generateJobName(repoURL string) string {
 	u, err := url.Parse(repoURL)
