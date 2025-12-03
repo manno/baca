@@ -18,15 +18,32 @@ create pull requests, and run coding agents.
 Required credentials (via flags or environment variables):
   GITHUB_TOKEN - GitHub personal access token for:
     - Git repository cloning (Fleet gitcloner)
+    - Git push to create branches (git push origin)
     - Pull request creation (gh CLI)
-    Generate at: https://github.com/settings/personal-access-tokens/new
-    Required permissions: "Contents" read/write, "Pull requests" read/write
+    
+    Fine-grained PAT (recommended):
+      Generate at: https://github.com/settings/personal-access-tokens/new
+      Required permissions: 
+        - "Contents" read/write (for cloning and pushing)
+        - "Pull requests" read/write (for creating PRs)
+        - "Metadata" read (automatically included)
+    
+    Classic PAT:
+      Generate at: https://github.com/settings/tokens/new
+      Required scopes: repo, read:org
 
 Copilot CLI authentication (if using copilot-cli agent):
   --copilot-token or COPILOT_TOKEN - GitHub token for Copilot CLI
-    Generate at: https://github.com/settings/personal-access-tokens/new
-    Required permissions: "Copilot Requests" read/write
-    Note: Can use same token as GITHUB_TOKEN if it has all permissions
+    
+    Fine-grained PAT (recommended):
+      Generate at: https://github.com/settings/personal-access-tokens/new
+      Required permissions: "Copilot Requests" read/write
+    
+    Classic PAT:
+      Generate at: https://github.com/settings/tokens/new
+      Required scopes: repo, read:org (same as GITHUB_TOKEN)
+    
+    Note: Can use same token as GITHUB_TOKEN if it has all required scopes
 
 Gemini authentication (if using gemini-cli agent, choose one):
   --gemini-api-key or GEMINI_API_KEY - Gemini API key for gemini-cli

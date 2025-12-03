@@ -45,7 +45,7 @@ Pod:
       mountPath: /workspace
     envFrom:
     - secretRef: bca-credentials
-  
+
   containers:
   - name: runner
     image: ghcr.io/manno/background-coder:latest
@@ -62,7 +62,7 @@ Pod:
       mountPath: /workspace
     envFrom:
     - secretRef: bca-credentials
-  
+
   volumes:
   - name: workspace
     emptyDir: {}
@@ -156,7 +156,7 @@ Start simple, iterate. Don't add features until they're needed.
 ### Code Style
 - Use `goimports -w .` for formatting
 - Run `go vet ./...` to catch issues
-- Run `go build` to verify compilation
+- Run `go build` to verify compilation after code changes
 - Minimal comments - only for clarification
 - Write integration tests for K8s interactions (see tests/README.md)
 
@@ -362,8 +362,8 @@ Set `CI_USE_EXISTING_CLUSTER=true` to use k3d cluster instead of envtest.
 
 ## Docker Runner Image
 
-**Base Image:** `catthehacker/ubuntu:act-latest`  
-**Location:** `Dockerfile`  
+**Base Image:** `catthehacker/ubuntu:act-latest`
+**Location:** `Dockerfile`
 **Registry:** `ghcr.io/manno/background-coder:latest`
 
 **Includes:**

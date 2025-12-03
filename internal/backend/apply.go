@@ -69,7 +69,7 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 	if branch == "" {
 		branch = "main"
 	}
-	
+
 	initContainer := corev1.Container{
 		Name:            "git-clone",
 		Image:           image,
@@ -109,13 +109,37 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 cd /workspace/repo
 git config --global user.email "bca@example.com"
 git config --global user.name "BCA Bot"
+# Create a unique branch name
+BRANCH_NAME="bca-$(date +%s)-${RANDOM}"
+git checkout -b "${BRANCH_NAME}"
 # Save original GITHUB_TOKEN for gh pr create
 SAVED_GITHUB_TOKEN="${GITHUB_TOKEN}"
+
 # Use COPILOT_TOKEN for copilot if available
 export GITHUB_TOKEN="${COPILOT_TOKEN:-$GITHUB_TOKEN}"
 bca execute --config "$CONFIG" --work-dir /workspace/repo
-# Restore original GITHUB_TOKEN for gh pr create
+
+echo "------------"
+echo " AGENT DONE "
+echo "------------"
+# Restore original GITHUB_TOKEN for gh pr create and git push
 export GITHUB_TOKEN="${SAVED_GITHUB_TOKEN}"
+# Check if there are any changes (uncommitted or committed on branch)
+if git diff --quiet && git diff --cached --quiet && git diff --quiet origin/main...HEAD; then
+  echo "No changes made by agent, skipping PR creation"
+  exit 0
+fi
+# Configure git to use GITHUB_TOKEN for authentication
+git config --global url."https://oauth2:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"
+# Commit any uncommitted changes
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  git add -A
+  git commit -m "BCA: Automated code changes
+
+Prompt: ${PROMPT:0:500}"
+fi
+git push origin "${BRANCH_NAME}"
+# Create pull request
 gh pr create --fill`,
 		},
 		VolumeMounts: []corev1.VolumeMount{workspaceMount},
@@ -127,6 +151,10 @@ gh pr create --fill`,
 			{
 				Name:  "REPO_URL",
 				Value: repoURL,
+			},
+			{
+				Name:  "PROMPT",
+				Value: c.Spec.Prompt,
 			},
 		},
 		EnvFrom: []corev1.EnvFromSource{
@@ -189,8 +217,8 @@ gh pr create --fill`,
 		},
 		Spec: batchv1.JobSpec{
 			// Automatically clean up jobs after completion
-			TTLSecondsAfterFinished: int32Ptr(3600), // Clean up after 1 hour
-			BackoffLimit:            int32Ptr(3),    // Retry up to 3 times on failure
+			TTLSecondsAfterFinished: int32Ptr(300), // Clean up after 5 minutes
+			BackoffLimit:            int32Ptr(1),   // Retry up to 1 times on failure
 			Template: corev1.PodTemplateSpec{
 				Spec: podSpec,
 			},
@@ -199,7 +227,6 @@ gh pr create --fill`,
 
 	return job
 }
-
 
 func (k *KubernetesBackend) generateJobName(repoURL string) string {
 	u, err := url.Parse(repoURL)

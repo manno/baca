@@ -10,9 +10,11 @@ Execute AI-driven code transformations across multiple repositories using natura
 
 - **Kubernetes cluster** (k3d, minikube, or remote)
 - **kubectl** configured
-- **GitHub Token** with `Contents` + `Pull requests` permissions
+- **GitHub Token** with repository access:
+  - Fine-grained PAT: `Contents` read/write, `Pull requests` read/write, `Metadata` read
+  - Classic PAT: `repo`, `read:org` scopes
 - **Agent credentials:**
-  - Copilot: Fine-grained PAT with `Copilot Requests` permission
+  - Copilot: Fine-grained PAT with `Copilot Requests` read/write OR Classic PAT with `repo`, `read:org`
   - Gemini: API key from https://aistudio.google.com/apikey
 
 ## Quick Start

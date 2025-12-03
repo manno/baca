@@ -74,6 +74,9 @@ spec:
 
 # Or apply without waiting
 ./bca apply test-change.yaml --namespace bca-test --no-wait
+
+# Or without comiling first
+go run ./main.go apply change.yaml
 ```
 
 ### 6. Monitor Job Execution
