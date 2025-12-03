@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/manno/background-coding-agent/internal/change"
 )
@@ -34,6 +35,12 @@ func (e *Executor) Execute(ctx context.Context, c *change.Change) error {
 
 	if err := e.runAgent(ctx, c); err != nil {
 		return fmt.Errorf("failed to run agent: %w", err)
+	}
+
+	// Generate PR metadata after agent completes
+	if err := e.generatePRMetadata(ctx, c); err != nil {
+		e.logger.Error("failed to generate PR metadata", "error", err)
+		// Don't fail the job if PR metadata generation fails
 	}
 
 	e.logger.Info("execution completed successfully")
@@ -120,5 +127,66 @@ func (e *Executor) runAgent(ctx context.Context, c *change.Change) error {
 		return fmt.Errorf("agent execution failed: %w", err)
 	}
 
+	return nil
+}
+
+func (e *Executor) generatePRMetadata(ctx context.Context, c *change.Change) error {
+	e.logger.Info("generating PR metadata")
+
+	// Extract prompt without everything after ---
+	promptClean := c.Spec.Prompt
+	if idx := strings.Index(promptClean, "\n---\n"); idx != -1 {
+		promptClean = promptClean[:idx]
+	}
+
+	// Prepare prompt for agent to generate PR description
+	prPrompt := fmt.Sprintf(`Review the git diff and create a pull request title and description.
+
+Requirements:
+- Title: One line, clear and descriptive (max 72 chars)
+- Body: Summarize what changed and why (2-4 sentences)
+- Add a "## Prompt" section at the end with the original prompt
+
+Original prompt:
+%s
+
+Format your response EXACTLY as:
+TITLE: <your title here>
+BODY:
+<your description here>
+
+## Prompt
+%s`, promptClean, promptClean)
+
+	// Run the agent to generate PR description
+	agentCommand := GetCommand(c.Spec.Agent)
+	var cmd *exec.Cmd
+	
+	switch c.Spec.Agent {
+	case "copilot-cli":
+		cmd = exec.CommandContext(ctx, agentCommand,
+			"--add-dir", e.workDir,
+			"-p", prPrompt,
+			"--allow-all-tools")
+	case "gemini-cli":
+		cmd = exec.CommandContext(ctx, agentCommand, prPrompt)
+	default:
+		return fmt.Errorf("unsupported agent: %s", c.Spec.Agent)
+	}
+
+	cmd.Dir = e.workDir
+	cmd.Stderr = os.Stderr // Send stderr to logs, not to PR metadata
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("agent failed to generate PR metadata: %w", err)
+	}
+
+	// Write the output to /workspace/pr-metadata.txt
+	metadataPath := "/workspace/pr-metadata.txt"
+	if err := os.WriteFile(metadataPath, output, 0644); err != nil {
+		return fmt.Errorf("failed to write PR metadata: %w", err)
+	}
+
+	e.logger.Info("PR metadata generated", "path", metadataPath)
 	return nil
 }
