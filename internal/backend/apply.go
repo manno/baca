@@ -20,6 +20,8 @@ import (
 
 // jobScript is the main script that runs in the job container.
 // It handles token management, agent execution, branch creation, and PR creation.
+//
+//nolint:gosec // G101: This is a bash script template, not actual hardcoded credentials
 const jobScript = `set -e
 cd /workspace/repo
 git config --global user.email "bca@example.com"
@@ -176,7 +178,7 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 		Image:           image,
 		ImagePullPolicy: corev1.PullIfNotPresent,
 		Command:         []string{"bash", "-c", jobScript},
-		VolumeMounts: []corev1.VolumeMount{workspaceMount},
+		VolumeMounts:    []corev1.VolumeMount{workspaceMount},
 		Env: []corev1.EnvVar{
 			{
 				Name:  "CONFIG",
@@ -448,13 +450,13 @@ func (k *KubernetesBackend) printContainerLogs(ctx context.Context, podName, con
 	defer logs.Close()
 
 	k.logger.Info("--- Logs from "+containerType+" ---", "container", containerName)
-	
+
 	scanner := bufio.NewScanner(logs)
 	for scanner.Scan() {
 		// Print directly to stdout (not as structured log)
 		fmt.Println(scanner.Text())
 	}
-	
+
 	if err := scanner.Err(); err != nil {
 		k.logger.Error("error reading logs", "error", err)
 	}

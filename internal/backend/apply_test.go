@@ -118,7 +118,7 @@ func TestGenerateRandomSuffix(t *testing.T) {
 
 		// Check it's valid hex
 		for _, c := range suffix {
-			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')) {
+			if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 				t.Errorf("suffix contains non-hex character: %s", suffix)
 			}
 		}

@@ -96,27 +96,27 @@ func (e *Executor) runAgent(ctx context.Context, c *change.Change) error {
 	e.logger.Info("running coding agent", "agent", c.Spec.Agent, "prompt", c.Spec.Prompt)
 
 	agentCommand := GetCommand(c.Spec.Agent)
-	
+
 	var cmd *exec.Cmd
-	
+
 	switch c.Spec.Agent {
 	case "copilot-cli":
 		// For copilot-cli, combine all args: add directories, prompt, and allow tools
 		e.logger.Info("running copilot in interactive mode")
-		cmd = exec.CommandContext(ctx, agentCommand, 
-			"--add-dir", "/workspace", 
+		cmd = exec.CommandContext(ctx, agentCommand,
+			"--add-dir", "/workspace",
 			"--add-dir", "/tmp",
 			"-p", c.Spec.Prompt,
 			"--allow-all-tools")
-		
+
 	case "gemini-cli":
 		// For gemini-cli, pass prompt directly
 		cmd = exec.CommandContext(ctx, agentCommand, c.Spec.Prompt)
-		
+
 	default:
 		return fmt.Errorf("unsupported agent: %s", c.Spec.Agent)
 	}
-	
+
 	cmd.Dir = e.workDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -161,7 +161,7 @@ BODY:
 	// Run the agent to generate PR description
 	agentCommand := GetCommand(c.Spec.Agent)
 	var cmd *exec.Cmd
-	
+
 	switch c.Spec.Agent {
 	case "copilot-cli":
 		cmd = exec.CommandContext(ctx, agentCommand,
@@ -183,7 +183,7 @@ BODY:
 
 	// Write the output to /workspace/pr-metadata.txt
 	metadataPath := "/workspace/pr-metadata.txt"
-	if err := os.WriteFile(metadataPath, output, 0644); err != nil {
+	if err := os.WriteFile(metadataPath, output, 0600); err != nil {
 		return fmt.Errorf("failed to write PR metadata: %w", err)
 	}
 

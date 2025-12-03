@@ -51,7 +51,7 @@ var _ = Describe("Backend Apply", func() {
 			githubToken = os.Getenv("COPILOT_TOKEN")
 		}
 		if githubToken == "" {
-			githubToken = "test-github-token"
+			githubToken = "test-github-token" //nolint:gosec // G101: Test credential, not production
 		}
 
 		credentials := map[string]string{

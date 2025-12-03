@@ -56,5 +56,5 @@ func init() {
 	executeCmd.Flags().String("work-dir", ".", "working directory")
 	executeCmd.Flags().String("config", "", "JSON configuration with agent, prompt, agentsmd, and resources")
 
-	executeCmd.MarkFlagRequired("config")
+	_ = executeCmd.MarkFlagRequired("config")
 }
