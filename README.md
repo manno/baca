@@ -199,9 +199,9 @@ kubectl describe job <job-name> -n <namespace>
 
 Build:
 ```bash
-./scripts/build-release.sh           # Build CLI binaries
-./scripts/build-runner-image.sh      # Build Docker image
-./scripts/import-image-k3d.sh        # Import to k3d cluster
+./dev/build-release.sh           # Build CLI binaries
+./dev/build-runner-image.sh      # Build Docker image
+./dev/import-image-k3d.sh        # Import to k3d cluster
 ```
 
 Test:

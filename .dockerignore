@@ -23,7 +23,7 @@ tests/
 docs/
 
 # Scripts (not needed in image)
-scripts/
+dev/
 
 # CI/CD
 .github/

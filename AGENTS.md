@@ -150,7 +150,7 @@ Pod:
 │       ├── setup_test.go  # Setup command tests
 │       └── apply_test.go  # Apply command tests
 ├── Dockerfile             # Multi-arch runner image
-├── scripts/               # Build and utility scripts
+├── dev/                   # Build and utility scripts
 ├── main.go                # CLI entrypoint
 ├── SPEC01.md             # Original specification
 ├── README.md             # User documentation
@@ -371,10 +371,10 @@ When you update the Docker runner image, you MUST load it into k3d:
 
 ```bash
 # Build new image
-./scripts/build-runner-image.sh
+./dev/build-runner-image.sh
 
 # Import into k3d cluster (required!)
-./scripts/import-image-k3d.sh
+./dev/import-image-k3d.sh
 ```
 
 **Test Modes:**
@@ -399,9 +399,9 @@ Set `CI_USE_EXISTING_CLUSTER=true` to use k3d cluster instead of envtest.
 
 **Build Process:**
 ```bash
-./scripts/build-release.sh           # Build CLI binaries (amd64 + arm64)
-./scripts/build-runner-image.sh      # Build multi-arch Docker image
-./scripts/import-image-k3d.sh        # Import to k3d for local testing
+./dev/build-release.sh           # Build CLI binaries (amd64 + arm64)
+./dev/build-runner-image.sh      # Build multi-arch Docker image
+./dev/import-image-k3d.sh        # Import to k3d for local testing
 ```
 
 **Multi-arch:** Builds for both linux/amd64 and linux/arm64 using buildx.
@@ -567,7 +567,7 @@ goimports -w .       # Fix formatting
 
 ```bash
 # Check envtest
-./scripts/setup-envtest.sh
+./dev/setup-envtest.sh
 
 # Use k3d for debugging
 export CI_USE_EXISTING_CLUSTER=true
@@ -580,8 +580,8 @@ kubectl logs -n test <pod-name> -c runner
 
 ```bash
 # Rebuild and import
-./scripts/build-runner-image.sh
-./scripts/import-image-k3d.sh
+./dev/build-runner-image.sh
+./dev/import-image-k3d.sh
 
 # Check image in k3d
 docker exec k3d-upstream-server-0 crictl images | grep background-coder

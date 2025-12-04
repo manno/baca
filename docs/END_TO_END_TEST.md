@@ -21,9 +21,9 @@ This document provides a step-by-step guide for testing the complete BCA workflo
 go build -o bca .
 
 # Build and load runner image (for k3d)
-./scripts/build-release.sh
-./scripts/build-runner-image.sh
-./scripts/import-runner-image.sh  # Only for k3d
+./dev/build-release.sh
+./dev/build-runner-image.sh
+./dev/import-runner-image.sh  # Only for k3d
 ```
 
 ### 2. Prepare Test Repository

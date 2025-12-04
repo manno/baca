@@ -4,9 +4,9 @@
 # DESCRIPTION: Builds release binary for specified platform
 #
 # Usage:
-#   ./scripts/build-release.sh                    # Builds for linux/amd64 (default)
-#   GOARCH=arm64 ./scripts/build-release.sh       # Builds for linux/arm64
-#   GOOS=darwin GOARCH=arm64 ./scripts/build-release.sh  # Builds for macOS arm64
+#   ./dev/build-release.sh                    # Builds for linux/amd64 (default)
+#   GOARCH=arm64 ./dev/build-release.sh       # Builds for linux/arm64
+#   GOOS=darwin GOARCH=arm64 ./dev/build-release.sh  # Builds for macOS arm64
 
 set -e
 
