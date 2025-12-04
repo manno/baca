@@ -14,10 +14,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "bca",
-	Short: "Background Coding Agent - Execute complex code transformations using prompts",
-	Long: `Background Coding Agent is a platform that allows engineers to execute
-complex code transformations across multiple repositories using natural language prompts.`,
+	Use:   "baca",
+	Short: "Background Automated Coding Agent - Declarative, prompt-driven code transformation",
+	Long: `Background Automated Coding Agent is a declarative, prompt-driven code transformation platform.`,
 }
 
 func Execute() error {
@@ -27,7 +26,7 @@ func Execute() error {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.bca.yaml)")
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.baca.yaml)")
 	rootCmd.PersistentFlags().String("log-level", "info", "log level (debug, info, warn, error)")
 	_ = viper.BindPFlag("log-level", rootCmd.PersistentFlags().Lookup("log-level"))
 
@@ -48,7 +47,7 @@ func initConfig() {
 
 		viper.AddConfigPath(home)
 		viper.SetConfigType("yaml")
-		viper.SetConfigName(".bca")
+		viper.SetConfigName(".baca")
 	}
 
 	viper.AutomaticEnv()

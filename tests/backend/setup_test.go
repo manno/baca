@@ -7,8 +7,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/manno/background-coding-agent/internal/backend/k8s"
-	"github.com/manno/background-coding-agent/tests/utils"
+	"github.com/manno/baca/internal/backend/k8s"
+	"github.com/manno/baca/tests/utils"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -61,7 +61,7 @@ var _ = Describe("Backend Setup", func() {
 
 			secret := &corev1.Secret{}
 			err = k8sClient.Get(ctx, client.ObjectKey{
-				Name:      "bca-credentials",
+				Name:      "baca-credentials",
 				Namespace: namespace,
 			}, secret)
 			Expect(err).NotTo(HaveOccurred())
@@ -89,7 +89,7 @@ var _ = Describe("Backend Setup", func() {
 
 			secret := &corev1.Secret{}
 			err = k8sClient.Get(ctx, client.ObjectKey{
-				Name:      "bca-credentials",
+				Name:      "baca-credentials",
 				Namespace: namespace,
 			}, secret)
 			Expect(err).NotTo(HaveOccurred())

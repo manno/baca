@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"github.com/manno/background-coding-agent/internal/backend/k8s"
-	"github.com/manno/background-coding-agent/internal/change"
+	"github.com/manno/baca/internal/backend/k8s"
+	"github.com/manno/baca/internal/change"
 	"github.com/spf13/cobra"
 )
 

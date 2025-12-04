@@ -3,8 +3,8 @@ package cmd
 import (
 	"encoding/json"
 
-	agentpkg "github.com/manno/background-coding-agent/internal/agent"
-	"github.com/manno/background-coding-agent/internal/change"
+	agentpkg "github.com/manno/baca/internal/agent"
+	"github.com/manno/baca/internal/change"
 	"github.com/spf13/cobra"
 )
 

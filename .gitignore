@@ -1,9 +1,8 @@
+.DS_Store
 .envrc
 creds.yaml
 runner-image
-bca
-bca-release
-bca-release-*
+baca
+baca-release*
 dist/
 tmp/
-background-coding-agent

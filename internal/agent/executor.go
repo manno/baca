@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/manno/background-coding-agent/internal/change"
+	"github.com/manno/baca/internal/change"
 )
 
 type Executor struct {

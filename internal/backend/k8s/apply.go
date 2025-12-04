@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/manno/background-coding-agent/internal/change"
+	"github.com/manno/baca/internal/change"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -53,7 +53,7 @@ echo "Fork URL: $(cat /workspace/fork-url.txt)"`
 //nolint:gosec // G101: This is a bash script template, not actual hardcoded credentials
 const jobScript = `set -e
 cd /workspace/repo
-git config --global user.email "bca@example.com"
+git config --global user.email "baca@example.com"
 git config --global user.name "BCA Bot"
 
 # Add upstream remote pointing to original repo
@@ -64,7 +64,7 @@ SAVED_GITHUB_TOKEN="${GITHUB_TOKEN}"
 
 # Use COPILOT_TOKEN for copilot if available
 export GITHUB_TOKEN="${COPILOT_TOKEN:-$GITHUB_TOKEN}"
-bca execute --config "$CONFIG" --work-dir /workspace/repo
+baca execute --config "$CONFIG" --work-dir /workspace/repo
 
 echo "------------"
 echo " AGENT DONE "
@@ -74,7 +74,7 @@ echo "------------"
 export GITHUB_TOKEN="${SAVED_GITHUB_TOKEN}"
 
 # Create a branch from the current state (after agent changes)
-BRANCH_NAME="bca-$(date +%s)-${RANDOM}"
+BRANCH_NAME="baca-$(date +%s)-${RANDOM}"
 git checkout -b "${BRANCH_NAME}"
 
 # Stage all changes (including new files) before checking
@@ -191,7 +191,7 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 			{
 				SecretRef: &corev1.SecretEnvSource{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "bca-credentials",
+						Name: "baca-credentials",
 					},
 				},
 			},
@@ -218,7 +218,7 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 			{
 				SecretRef: &corev1.SecretEnvSource{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "bca-credentials",
+						Name: "baca-credentials",
 					},
 				},
 			},
@@ -233,7 +233,7 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 		configJSON = []byte("{}")
 	}
 
-	// Main container: Run bca execute with agent
+	// Main container: Run baca execute with agent
 	container := corev1.Container{
 		Name:            "runner",
 		Image:           image,
@@ -262,7 +262,7 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 			{
 				SecretRef: &corev1.SecretEnvSource{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "bca-credentials",
+						Name: "baca-credentials",
 					},
 				},
 			},
@@ -291,7 +291,7 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 			Name: "gemini-oauth",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: "bca-credentials",
+					SecretName: "baca-credentials",
 					Items: []corev1.KeyToPath{
 						{Key: "GEMINI_oauth_creds.json", Path: "oauth_creds.json", Mode: int32Ptr(0600)},
 						{Key: "GEMINI_google_accounts.json", Path: "google_accounts.json", Mode: int32Ptr(0600)},
@@ -309,10 +309,10 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 			Name:      jobName,
 			Namespace: k.namespace,
 			Labels: map[string]string{
-				"app":                          "background-coding-agent",
-				"app.kubernetes.io/name":       "bca",
+				"app":                          "background-automated-code-agent",
+				"app.kubernetes.io/name":       "baca",
 				"app.kubernetes.io/component":  "job",
-				"app.kubernetes.io/managed-by": "bca-cli",
+				"app.kubernetes.io/managed-by": "baca-cli",
 				"repo":                         k.sanitizeLabel(repoURL),
 			},
 		},
@@ -332,7 +332,7 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 func (k *KubernetesBackend) generateJobName(repoURL string) string {
 	u, err := url.Parse(repoURL)
 	if err != nil || u.Scheme == "" {
-		return fmt.Sprintf("bca-job-%s", generateRandomSuffix())
+		return fmt.Sprintf("baca-job-%s", generateRandomSuffix())
 	}
 
 	path := strings.TrimPrefix(u.Path, "/")
@@ -340,9 +340,9 @@ func (k *KubernetesBackend) generateJobName(repoURL string) string {
 	path = strings.ReplaceAll(path, "/", "-")
 	path = strings.ToLower(path)
 
-	// Calculate max length: 63 (k8s limit) - len("bca-") - len("-") - 8 (suffix)
+	// Calculate max length: 63 (k8s limit) - len("baca-") - len("-") - 8 (suffix)
 	const maxNameLen = 63
-	const prefix = "bca-"
+	const prefix = "baca-"
 	const suffixLen = 8                                    // hex string length
 	maxPathLen := maxNameLen - len(prefix) - 1 - suffixLen // -1 for hyphen before suffix
 
@@ -350,7 +350,7 @@ func (k *KubernetesBackend) generateJobName(repoURL string) string {
 		path = path[:maxPathLen]
 	}
 
-	return fmt.Sprintf("bca-%s-%s", path, generateRandomSuffix())
+	return fmt.Sprintf("baca-%s-%s", path, generateRandomSuffix())
 }
 
 // generateRandomSuffix creates a short random string for job name uniqueness

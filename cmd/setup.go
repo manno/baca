@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/manno/background-coding-agent/internal/backend/k8s"
+	"github.com/manno/baca/internal/backend/k8s"
 	"github.com/spf13/cobra"
 )
 

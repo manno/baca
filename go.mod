@@ -1,4 +1,4 @@
-module github.com/manno/background-coding-agent
+module github.com/manno/baca
 
 go 1.25.4
 

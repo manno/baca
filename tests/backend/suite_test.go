@@ -9,13 +9,13 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/manno/background-coding-agent/tests/utils"
+	"github.com/manno/baca/tests/utils"
 
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/manno/background-coding-agent/internal/backend/k8s"
+	"github.com/manno/baca/internal/backend/k8s"
 )
 
 var (
@@ -44,7 +44,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	tmpdir, _ = os.MkdirTemp("", "bca-")
+	tmpdir, _ = os.MkdirTemp("", "baca-")
 	kubeconfigPath = path.Join(tmpdir, "kubeconfig")
 	err = utils.WriteKubeConfig(cfg, kubeconfigPath)
 	Expect(err).NotTo(HaveOccurred())

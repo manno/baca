@@ -17,8 +17,8 @@ export GOARCH="${GOARCH:-amd64}"
 # Create dist directory if it doesn't exist
 mkdir -p dist
 
-echo "Building bca for $GOOS/$GOARCH..."
+echo "Building baca for $GOOS/$GOARCH..."
 
-CGO_ENABLED=0 go build -gcflags='all=-N -l' -o "dist/bca-$GOOS-$GOARCH" .
+CGO_ENABLED=0 go build -gcflags='all=-N -l' -o "dist/baca-$GOOS-$GOARCH" .
 
-echo "✅ Binary built: dist/bca-$GOOS-$GOARCH"
+echo "✅ Binary built: dist/baca-$GOOS-$GOARCH"

@@ -32,7 +32,7 @@ func (k *KubernetesBackend) Setup(ctx context.Context, credentials map[string]st
 	// Create secret with all provided credentials
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "bca-credentials",
+			Name:      "baca-credentials",
 			Namespace: k.namespace,
 		},
 		Type:       corev1.SecretTypeOpaque,

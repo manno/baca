@@ -1,4 +1,4 @@
-# BCA Development Guide
+# BACA Development Guide
 
 Documentation for developers.
 
@@ -25,7 +25,7 @@ CLI → Change YAML → Kubernetes Jobs → Init Container (clone) + Main Contai
 ```
 
 **Init Container:** `fleet gitcloner` clones repo to `/workspace/repo`
-**Main Container:** `bca execute --config <json>` runs agent, then `gh pr create`
+**Main Container:** `baca execute --config <json>` runs agent, then `gh pr create`
 **Shared Volume:** EmptyDir at `/workspace` passes repo between containers
 
 ## Project Structure
@@ -56,7 +56,7 @@ dev/              - Build scripts
 ### Build
 
 ```bash
-go build -o bca .                    # Build CLI
+go build -o baca .                    # Build CLI
 ./dev/build-release.sh           # Multi-arch binaries
 ./dev/build-runner-image.sh      # Docker image
 ./dev/import-image-k3d.sh        # Load into k3d
@@ -92,7 +92,7 @@ spec:
   branch: main        # optional, default: main
   agentsmd: "https://..." # optional
   resources: ["https://..."] # optional
-  image: ghcr.io/manno/background-coder:latest # optional
+  image: ghcr.io/manno/baca-runner:latest # optional
 ```
 
 ## Agent Configuration
@@ -123,21 +123,21 @@ spec:
 Job:
   initContainers:
   - name: git-clone
-    image: ghcr.io/manno/background-coder:latest
+    image: ghcr.io/manno/baca-runner:latest
     command: fleet gitcloner --branch main $REPO_URL /workspace/repo
     volumeMounts:
     - name: workspace
       mountPath: /workspace
     envFrom:
-    - secretRef: bca-credentials
+    - secretRef: baca-credentials
 
   containers:
   - name: runner
-    image: ghcr.io/manno/background-coder:latest
+    image: ghcr.io/manno/baca-runner:latest
     command: |
       cd /workspace/repo
-      git config --global user.name "BCA Bot"
-      bca execute --config "$CONFIG" --work-dir /workspace/repo
+      git config --global user.name "BACA Bot"
+      baca execute --config "$CONFIG" --work-dir /workspace/repo
       gh pr create --fill
     env:
     - name: CONFIG
@@ -146,7 +146,7 @@ Job:
     - name: workspace
       mountPath: /workspace
     envFrom:
-    - secretRef: bca-credentials
+    - secretRef: baca-credentials
 
   volumes:
   - name: workspace
@@ -198,7 +198,7 @@ ginkgo -v ./tests/backend/
 
 # Inspect jobs
 kubectl get jobs -n test
-kubectl logs -n test job/bca-xxx
+kubectl logs -n test job/baca-xxx
 ```
 
 **Test Structure:**
@@ -229,7 +229,7 @@ var _ = Describe("Backend", func() {
 - `fleet` v0.14.0
 - `gemini` (npm package)
 - `copilot` (npm package)
-- `bca` binary
+- `baca` binary
 
 **Build:** Multi-arch (amd64, arm64)
 

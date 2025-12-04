@@ -9,7 +9,7 @@
 # 2. You must have a Personal Access Token (PAT) with 'write:packages' scope.
 # 3. The Dockerfile must be in the current directory.
 
-IMAGE_NAME="ghcr.io/manno/background-coder"
+IMAGE_NAME="ghcr.io/manno/baca-runner"
 TAG="latest"
 PLATFORMS=${PLATFORMS-"linux/amd64,linux/arm64"}
 DOCKERFILE="Dockerfile"

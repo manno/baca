@@ -1,4 +1,4 @@
-# GitHub Token Permissions for BCA
+# GitHub Token Permissions for BACA
 
 ## GITHUB_TOKEN (Required)
 
@@ -66,7 +66,7 @@ Used for: GitHub Copilot CLI authentication
 
 **Note:** Classic tokens work for both gh CLI and Copilot CLI with the same scopes.
 
-## Token Usage in BCA
+## Token Usage in BACA
 
 ### How Tokens Are Used
 
@@ -78,7 +78,7 @@ SAVED_GITHUB_TOKEN="${GITHUB_TOKEN}"
 
 # Use COPILOT_TOKEN for copilot if available
 export GITHUB_TOKEN="${COPILOT_TOKEN:-$GITHUB_TOKEN}"
-bca execute --config "$CONFIG" --work-dir /workspace/repo
+baca execute --config "$CONFIG" --work-dir /workspace/repo
 
 # Restore original GITHUB_TOKEN for gh pr create
 export GITHUB_TOKEN="${SAVED_GITHUB_TOKEN}"
@@ -99,7 +99,7 @@ export GITHUB_TOKEN=github_pat_abc123...
 # Token 2: For Copilot (Copilot Requests)
 export COPILOT_TOKEN=github_pat_xyz789...
 
-./bca setup --namespace bca-jobs
+./baca setup --namespace baca-jobs
 ```
 
 **Benefits:**
@@ -113,7 +113,7 @@ export COPILOT_TOKEN=github_pat_xyz789...
 # One classic token with repo + read:org scopes
 export GITHUB_TOKEN=ghp_classic123...
 
-./bca setup --namespace bca-jobs
+./baca setup --namespace baca-jobs
 # Copilot will automatically use GITHUB_TOKEN
 ```
 
@@ -135,7 +135,7 @@ export GITHUB_TOKEN=github_pat_finegrained...
 # Classic for Copilot (needs broader access)
 export COPILOT_TOKEN=ghp_classic...
 
-./bca setup --namespace bca-jobs
+./baca setup --namespace baca-jobs
 ```
 
 ## Verifying Token Permissions

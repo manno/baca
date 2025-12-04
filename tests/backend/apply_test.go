@@ -8,9 +8,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/manno/background-coding-agent/internal/backend/k8s"
-	"github.com/manno/background-coding-agent/internal/change"
-	"github.com/manno/background-coding-agent/tests/utils"
+	"github.com/manno/baca/internal/backend/k8s"
+	"github.com/manno/baca/internal/change"
+	"github.com/manno/baca/tests/utils"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -101,7 +101,7 @@ var _ = Describe("Backend Apply", func() {
 			for _, job := range jobList.Items {
 				Expect(job.Spec.Template.Spec.Containers).To(HaveLen(1))
 				Expect(job.Spec.Template.Spec.Containers[0].Image).To(Equal("ghcr.io/example/runner:latest"))
-				Expect(job.Labels["app"]).To(Equal("background-coding-agent"))
+				Expect(job.Labels["app"]).To(Equal("background-automated-code-agent"))
 			}
 		})
 
@@ -129,7 +129,7 @@ var _ = Describe("Backend Apply", func() {
 
 			container := jobList.Items[0].Spec.Template.Spec.Containers[0]
 			Expect(container.EnvFrom).To(HaveLen(1))
-			Expect(container.EnvFrom[0].SecretRef.Name).To(Equal("bca-credentials"))
+			Expect(container.EnvFrom[0].SecretRef.Name).To(Equal("baca-credentials"))
 		})
 
 		It("uses default image when not specified", func() {
@@ -153,7 +153,7 @@ var _ = Describe("Backend Apply", func() {
 			err = k8sClient.List(ctx, jobList, client.InNamespace(namespace))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(jobList.Items).To(HaveLen(1))
-			Expect(jobList.Items[0].Spec.Template.Spec.Containers[0].Image).To(Equal("ghcr.io/manno/background-coder:latest"))
+			Expect(jobList.Items[0].Spec.Template.Spec.Containers[0].Image).To(Equal("ghcr.io/manno/baca-runner:latest"))
 		})
 
 		It("can get job status", func() {

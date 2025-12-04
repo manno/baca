@@ -1,6 +1,5 @@
 # Binaries (except release binary needed for Docker)
-bca
-background-coding-agent
+baca
 
 # Test files
 tests/

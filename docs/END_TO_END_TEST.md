@@ -1,6 +1,6 @@
 # End-to-End Testing Guide
 
-This document provides a step-by-step guide for testing the complete BCA workflow from setup to pull request creation.
+This document provides a step-by-step guide for testing the complete BACA workflow from setup to pull request creation.
 
 ## Prerequisites
 
@@ -9,7 +9,7 @@ This document provides a step-by-step guide for testing the complete BCA workflo
   - GITHUB_TOKEN with repo and PR permissions
   - COPILOT_TOKEN (optional, for copilot-cli)
   - GEMINI_API_KEY (optional, for gemini-cli)
-- Built bca binary and runner image
+- Built baca binary and runner image
 - Test repository you have write access to
 
 ## Setup Steps
@@ -18,7 +18,7 @@ This document provides a step-by-step guide for testing the complete BCA workflo
 
 ```bash
 # Build CLI binary
-go build -o bca .
+go build -o baca .
 
 # Build and load runner image (for k3d)
 ./dev/build-release.sh
@@ -44,13 +44,13 @@ export GEMINI_API_KEY="AIza_your_key_here"  # If using gemini-cli
 export COPILOT_TOKEN="github_pat_your_token"  # If using copilot-cli
 
 # Create namespace and credentials
-./bca setup --namespace bca-test
+./baca setup --namespace baca-test
 ```
 
 Verify setup:
 ```bash
-kubectl get secret -n bca-test bca-credentials
-kubectl describe secret -n bca-test bca-credentials
+kubectl get secret -n baca-test baca-credentials
+kubectl describe secret -n baca-test baca-credentials
 ```
 
 ### 4. Create Test Change Definition
@@ -70,10 +70,10 @@ spec:
 
 ```bash
 # Apply and wait for completion
-./bca apply test-change.yaml --namespace bca-test --wait
+./baca apply test-change.yaml --namespace baca-test --wait
 
 # Or apply without waiting
-./bca apply test-change.yaml --namespace bca-test --no-wait
+./baca apply test-change.yaml --namespace baca-test --no-wait
 
 # Or without comiling first
 go run ./main.go apply change.yaml
@@ -83,22 +83,22 @@ go run ./main.go apply change.yaml
 
 ```bash
 # List jobs
-kubectl get jobs -n bca-test
+kubectl get jobs -n baca-test
 
 # Check job status
-kubectl describe job -n bca-test bca-test-repo
+kubectl describe job -n baca-test baca-test-repo
 
 # View logs
-kubectl logs -n bca-test -l job-name=bca-test-repo --follow
+kubectl logs -n baca-test -l job-name=baca-test-repo --follow
 
 # Check pod status if job fails
-kubectl get pods -n bca-test
-kubectl logs -n bca-test <pod-name>
+kubectl get pods -n baca-test
+kubectl logs -n baca-test <pod-name>
 ```
 
 ## Expected Workflow
 
-1. **Job Creation**: BCA creates Kubernetes job
+1. **Job Creation**: BACA creates Kubernetes job
 2. **Clone**: Job clones repository using fleet gitcloner
 3. **Download**: Downloads agents.md and resources (if specified)
 4. **Execute**: Runs coding agent with prompt
@@ -111,11 +111,11 @@ kubectl logs -n bca-test <pod-name>
 
 ```bash
 # Check job events
-kubectl describe job -n bca-test <job-name>
+kubectl describe job -n baca-test <job-name>
 
 # Check pod events
-kubectl get pods -n bca-test
-kubectl describe pod -n bca-test <pod-name>
+kubectl get pods -n baca-test
+kubectl describe pod -n baca-test <pod-name>
 ```
 
 Common issues:
@@ -127,7 +127,7 @@ Common issues:
 
 Check logs for fleet gitcloner errors:
 ```bash
-kubectl logs -n bca-test -l job-name=<job-name> | grep -A5 "fleet gitcloner"
+kubectl logs -n baca-test -l job-name=<job-name> | grep -A5 "fleet gitcloner"
 ```
 
 Common issues:
@@ -139,7 +139,7 @@ Common issues:
 
 Check logs for agent errors:
 ```bash
-kubectl logs -n bca-test -l job-name=<job-name> | grep -A10 "gemini\|copilot"
+kubectl logs -n baca-test -l job-name=<job-name> | grep -A10 "gemini\|copilot"
 ```
 
 Common issues:
@@ -152,7 +152,7 @@ Common issues:
 
 Check logs for gh CLI errors:
 ```bash
-kubectl logs -n bca-test -l job-name=<job-name> | grep -A5 "gh pr create"
+kubectl logs -n baca-test -l job-name=<job-name> | grep -A5 "gh pr create"
 ```
 
 Common issues:
@@ -167,7 +167,7 @@ After successful execution:
 
 1. **Check Pull Request**:
    - Visit repository on GitHub
-   - Look for new PR from BCA Bot
+   - Look for new PR from BACA Bot
    - Review changes made by agent
 
 2. **Verify Changes**:
@@ -178,7 +178,7 @@ After successful execution:
 3. **Check Job Cleanup**:
    ```bash
    # Jobs should be cleaned up after 1 hour
-   kubectl get jobs -n bca-test
+   kubectl get jobs -n baca-test
    ```
 
 ## Multi-Repository Testing
@@ -207,10 +207,10 @@ Expected behavior:
 
 ```bash
 # Delete namespace and all resources
-kubectl delete namespace bca-test
+kubectl delete namespace baca-test
 
 # Or just delete jobs
-kubectl delete jobs -n bca-test --all
+kubectl delete jobs -n baca-test --all
 ```
 
 ## Next Steps

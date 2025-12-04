@@ -4,11 +4,11 @@
 
 ## Overview
 
-This feature would enable BCA to execute code transformations using GitHub Actions workflows instead of Kubernetes jobs. This provides an alternative execution backend that doesn't require a Kubernetes cluster.
+This feature would enable BACA to execute code transformations using GitHub Actions workflows instead of Kubernetes jobs. This provides an alternative execution backend that doesn't require a Kubernetes cluster.
 
 ## Motivation
 
-- **Lower barrier to entry**: Users without Kubernetes access can still use BCA
+- **Lower barrier to entry**: Users without Kubernetes access can still use BACA
 - **GitHub-native**: Leverages existing GitHub infrastructure and secrets
 - **Simpler setup**: No need for cluster management or credential sync
 - **Cost-effective**: Uses GitHub Actions minutes instead of compute infrastructure
@@ -21,30 +21,30 @@ The existing commands would be namespaced under execution backends:
 
 **Current:**
 ```bash
-bca setup --github-token <token>
-bca apply change.yaml
-bca execute --config <json>
+baca setup --github-token <token>
+baca apply change.yaml
+baca execute --config <json>
 ```
 
 **New Structure:**
 ```bash
 # Kubernetes backend (existing)
-bca k8s setup --github-token <token>
-bca k8s apply change.yaml
-bca execute --config <json>  # unchanged, runs in job/workflow
+baca k8s setup --github-token <token>
+baca k8s apply change.yaml
+baca execute --config <json>  # unchanged, runs in job/workflow
 
 # GitHub Actions backend (new)
-bca gha setup --repo <org/repo>
-bca gha apply change.yaml --repo <org/repo>
+baca gha setup --repo <org/repo>
+baca gha apply change.yaml --repo <org/repo>
 ```
 
 ### GitHub Actions Workflow
 
-`bca gha setup` would create a reusable workflow file in the target repository:
+`baca gha setup` would create a reusable workflow file in the target repository:
 
-**.github/workflows/bca-execute.yml:**
+**.github/workflows/baca-execute.yml:**
 ```yaml
-name: BCA Execute
+name: BACA Execute
 
 on:
   workflow_dispatch:
@@ -86,11 +86,11 @@ jobs:
       with:
         node-version: '20'
 
-    - name: Install BCA and agents
+    - name: Install BACA and agents
       run: |
-        # Install BCA CLI
-        curl -L https://github.com/manno/background-coding-agent/releases/latest/download/bca-linux-amd64 -o /usr/local/bin/bca
-        chmod +x /usr/local/bin/bca
+        # Install BACA CLI
+        curl -L https://github.com/manno/baca/releases/latest/download/baca-linux-amd64 -o /usr/local/bin/baca
+        chmod +x /usr/local/bin/baca
 
         # Install agents based on input
         if [ "${{ inputs.agent }}" == "copilot-cli" ]; then
@@ -122,9 +122,9 @@ jobs:
         COPILOT_TOKEN: ${{ secrets.COPILOT_TOKEN }}
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       run: |
-        git config --global user.name "BCA Bot"
-        git config --global user.email "bca-bot@users.noreply.github.com"
-        bca execute --config "$CONFIG" --work-dir .
+        git config --global user.name "BACA Bot"
+        git config --global user.email "baca-bot@users.noreply.github.com"
+        baca execute --config "$CONFIG" --work-dir .
 
     - name: Create Pull Request
       env:
@@ -135,19 +135,19 @@ jobs:
 
 ## Command Details
 
-### `bca gha setup`
+### `baca gha setup`
 
-**Purpose:** Install the BCA workflow file in a GitHub repository
+**Purpose:** Install the BACA workflow file in a GitHub repository
 
 **Usage:**
 ```bash
-bca gha setup --repo owner/repo [--workflow-path .github/workflows/bca-execute.yml]
+baca gha setup --repo owner/repo [--workflow-path .github/workflows/baca-execute.yml]
 ```
 
 **Implementation:**
 1. Authenticate with GitHub (using GITHUB_TOKEN)
 2. Check if repository exists and user has write access
-3. Create/update `.github/workflows/bca-execute.yml` via GitHub API
+3. Create/update `.github/workflows/baca-execute.yml` via GitHub API
 4. Verify required secrets exist (GITHUB_TOKEN, COPILOT_TOKEN or GEMINI_API_KEY)
 5. Print setup instructions for missing secrets
 
@@ -158,13 +158,13 @@ bca gha setup --repo owner/repo [--workflow-path .github/workflows/bca-execute.y
 
 Alternatively, this command would just create the workflow file and inform the user to add the necessary secrets via GitHub UI.
 
-### `bca gha apply`
+### `baca gha apply`
 
 **Purpose:** Trigger workflow runs for each repository in Change definition
 
 **Usage:**
 ```bash
-bca gha apply change.yaml --repo owner/repo [--wait]
+baca gha apply change.yaml --repo owner/repo [--wait]
 ```
 
 **Implementation:**
@@ -178,7 +178,7 @@ bca gha apply change.yaml --repo owner/repo [--wait]
 
 **GitHub API Call:**
 ```
-POST /repos/{owner}/{repo}/actions/workflows/bca-execute.yml/dispatches
+POST /repos/{owner}/{repo}/actions/workflows/baca-execute.yml/dispatches
 {
   "ref": "main",
   "inputs": {
@@ -231,20 +231,20 @@ POST /repos/{owner}/{repo}/actions/workflows/bca-execute.yml/dispatches
 
 ```bash
 # One-time setup: Install workflow in a repository
-$ bca gha setup --repo myorg/myrepo
-✓ Workflow file created: .github/workflows/bca-execute.yml
+$ baca gha setup --repo myorg/myrepo
+✓ Workflow file created: .github/workflows/baca-execute.yml
 ⚠ Required secrets not configured:
   - COPILOT_TOKEN: Add at https://github.com/myorg/myrepo/settings/secrets/actions
   - GEMINI_API_KEY: Add at https://github.com/myorg/myrepo/settings/secrets/actions
 
 # Add secrets via GitHub UI
 # Then apply changes
-$ bca gha apply change.yaml --repo myorg/myrepo
+$ baca gha apply change.yaml --repo myorg/myrepo
 ✓ Triggered workflow run: https://github.com/myorg/myrepo/actions/runs/123456
 ✓ Triggered workflow run: https://github.com/myorg/another-repo/actions/runs/123457
 
 # Monitor progress
-$ bca gha apply change.yaml --repo myorg/myrepo --wait
+$ baca gha apply change.yaml --repo myorg/myrepo --wait
 ⏳ Waiting for workflow runs to complete...
 ✓ myorg/myrepo: Success - PR created #42
 ✓ myorg/another-repo: Success - PR created #15
@@ -254,7 +254,7 @@ $ bca gha apply change.yaml --repo myorg/myrepo --wait
 
 ### Workflow File Management
 - **Version control**: Workflow file is committed to repository
-- **Updates**: `bca gha setup` can update existing workflow
+- **Updates**: `baca gha setup` can update existing workflow
 - **Customization**: Users can modify workflow after creation
 
 ### Secret Management
@@ -286,11 +286,11 @@ Existing Kubernetes users can migrate gradually:
 
 ```bash
 # Continue using K8s
-bca k8s apply change.yaml
+baca k8s apply change.yaml
 
 # Or switch to GHA
-bca gha setup --repo org/repo
-bca gha apply change.yaml --repo org/repo
+baca gha setup --repo org/repo
+baca gha apply change.yaml --repo org/repo
 ```
 
 Both backends use the same Change YAML format and `execute` command.

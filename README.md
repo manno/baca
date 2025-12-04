@@ -1,41 +1,37 @@
-# Background Coding Agent (BCA)
+# Background Automated Coding Agent (BACA)
 
-Execute AI-driven code transformations across multiple repositories using natural language prompts.
+BACA is a declarative, prompt-driven code transformation platform that orchestrates AI coding agents (Copilot or Gemini) across multiple repositories simultaneously. Write a natural language prompt, specify your repositories, and BACA creates Kubernetes jobs that clone, transform, and submit pull requests automatically.
 
-## ⚠️  Security Notice
-
-**Never commit API tokens to source control.** Use environment variables or secret managers. See [AGENTS.md](AGENTS.md#security-best-practices).
-
-## Prerequisites
-
-- **Kubernetes cluster** (k3d, minikube, or remote)
-- **kubectl** configured
-- **GitHub Token** with repository access:
-  - Fine-grained PAT: `Contents` read/write, `Pull requests` read/write, `Metadata` read
-  - Classic PAT: `repo`, `read:org` scopes
-- **Agent credentials:**
-  - Copilot: Fine-grained PAT with `Copilot Requests` read/write OR Classic PAT with `repo`, `read:org`
-  - Gemini: API key from https://aistudio.google.com/apikey
+**Use cases:**
+- Apply security fixes across dozens of microservices
+- Refactor common patterns organization-wide
+- Update dependencies with code changes
+- Migrate APIs across all consuming services
 
 ## Quick Start
 
-### 1. Build BCA
+### 1. Build BACA
 
 ```bash
-git clone https://github.com/manno/background-coding-agent
-cd background-coding-agent
-go build -o bca .
+git clone https://github.com/manno/baca
+cd baca
+go build -o baca .
 ```
 
-### 2. Setup Backend
+### 2. Setup Credentials
 
 ```bash
-export GITHUB_TOKEN=ghp_xxx        # For git/PR operations
+export GITHUB_TOKEN=ghp_xxx         # Required: git clone, fork, PR creation
 export COPILOT_TOKEN=github_pat_xxx # OR
 export GEMINI_API_KEY=xxx           # Choose your agent
 
-bca setup --namespace bca-jobs
+baca setup --namespace baca-jobs
 ```
+
+**Token requirements:**
+- GitHub: `Contents` read/write, `Pull requests` read/write, `Metadata` read
+- Copilot: `Copilot Requests` read/write (or reuse GitHub token)
+- Gemini: API key from https://aistudio.google.com/apikey
 
 ### 3. Create Change Definition
 
@@ -55,10 +51,15 @@ spec:
 ### 4. Apply
 
 ```bash
-bca apply my-change.yaml --namespace bca-jobs
+baca apply my-change.yaml --namespace baca-jobs
 ```
 
-Creates one job per repository: clone → transform → create PR.
+Creates one Kubernetes job per repository.
+
+## Prerequisites
+
+- Kubernetes cluster (k3d, minikube, or remote) with kubectl configured
+- Go 1.25+ (for building from source)
 
 ## Commands
 
@@ -67,7 +68,7 @@ Creates one job per repository: clone → transform → create PR.
 Setup Kubernetes backend with credentials.
 
 ```bash
-bca setup --namespace <ns> [--copilot-token | --gemini-api-key | --gemini-oauth]
+baca setup --namespace <ns> [--copilot-token | --gemini-api-key | --gemini-oauth]
 ```
 
 ### apply
@@ -75,7 +76,7 @@ bca setup --namespace <ns> [--copilot-token | --gemini-api-key | --gemini-oauth]
 Execute code transformations.
 
 ```bash
-bca apply <change-file> --namespace <ns> [--wait]
+baca apply <change-file> --namespace <ns> [--wait]
 ```
 
 Options:
@@ -93,7 +94,7 @@ spec:
   branch: main                                 # optional, default: main
   agentsmd: "https://example.com/agents.md"   # optional
   resources: ["https://example.com/docs.md"]  # optional
-  image: ghcr.io/manno/background-coder:latest # optional
+  image: ghcr.io/manno/baca-runner:latest # optional
 ```
 
 ## Architecture
@@ -105,7 +106,7 @@ spec:
        │
        v
 ┌─────────────┐
-│  bca apply  │ Creates Kubernetes Jobs (one per repo)
+│ baca apply  │ Creates Kubernetes Jobs (one per repo)
 └──────┬──────┘
        │
        v
@@ -119,20 +120,15 @@ spec:
 │  └─ fleet gitcloner (clone fork)          │
 │                                           │
 │  Main Container: runner                   │
-│  ├─ bca execute (run agent on fork)       │
+│  ├─ baca execute (run agent on fork)      │
 │  ├─ git push (push to fork)               │
 │  └─ gh pr create (fork → original repo)   │
 └───────────────────────────────────────────┘
 ```
 
-**Init Container 1:** Creates/syncs fork in user's account using `gh repo fork`  
-**Init Container 2:** Clones fork using fleet gitcloner to shared volume  
-**Main Container:** Runs `bca execute --config <json>`, pushes to fork, creates cross-fork PR  
-**Shared Volume:** EmptyDir at `/workspace` for passing data between containers
+### Security Model (Staging Fork Approach)
 
-### Security Model
-
-BCA uses a **staging fork approach** to limit token exposure:
+BACA uses a **staging fork approach** to limit token exposure:
 
 1. **Fork isolation**: Changes are pushed to a fork in the authenticated user's account, not directly to target repos
 2. **Token scope**: `GITHUB_TOKEN` only needs write access to user's forks and PR creation on target repos
@@ -147,40 +143,28 @@ BCA uses a **staging fork approach** to limit token exposure:
 - Agent API tokens (Copilot/Gemini) are still exposed to job environment
 - No isolation between different users' jobs in same namespace
 
-## Job Execution Flow
+## How It Works
 
-1. **fork-setup init container** creates or syncs fork: `gh repo fork owner/repo`
-2. **git-clone init container** clones fork with `fleet gitcloner --branch main <fork-url> /workspace/repo`
-3. **Main container** receives JSON config via `$CONFIG` environment variable:
-   ```json
-   {
-     "agent": "copilot-cli",
-     "prompt": "Fix bugs",
-     "agentsmd": "https://...",
-     "resources": ["https://..."]
-   }
-   ```
-4. **bca execute** downloads resources and runs agent on forked repo:
-   - Copilot: `copilot --add-dir /workspace --add-dir /tmp -p "$PROMPT" --allow-all-tools`
-   - Gemini: `gemini "$PROMPT"`
-5. **git push** pushes changes to fork
-6. **gh pr create** creates pull request from fork to original repo
-7. **Auto-cleanup** after 5 minutes (TTL), max 1 retry
+Each repository gets a Kubernetes job with three containers:
 
-## Agents
+1. **Init: fork-setup** - Creates/syncs fork in user's GitHub account
+2. **Init: git-clone** - Clones fork to shared `/workspace` volume
+3. **Main: runner** - Runs AI agent, commits changes, pushes to fork, creates PR
 
-| Agent | Command | Requirements |
-|-------|---------|--------------|
-| copilot-cli | `copilot` | GitHub token with Copilot Requests permission |
-| gemini-cli | `gemini` | Gemini API key OR OAuth authentication |
+Configuration passed as JSON via environment variable. Jobs auto-cleanup after 5 minutes. No retries by default (configurable with `--retries`).
 
-Agent configuration in `internal/agent/config.go`.
+## Supported Agents
+
+- **copilot-cli**: GitHub Copilot (requires token with Copilot Requests permission)
+- **gemini-cli**: Google Gemini (requires API key or OAuth)
+
+Add new agents in `internal/agent/config.go`.
 
 ## Troubleshooting
 
 **Jobs fail with authentication errors:**
 ```bash
-kubectl get secret bca-credentials -n <namespace> -o yaml
+kubectl get secret baca-credentials -n <namespace> -o yaml
 kubectl logs -n <namespace> <job-pod> --all-containers
 ```
 
@@ -210,7 +194,10 @@ go test ./internal/...               # Unit tests
 ginkgo -v ./tests/...                # Integration tests
 ```
 
-See [AGENTS.md](AGENTS.md) for detailed development guide.
+**Documentation:**
+- `tests/README.md` - Testing documentation
+- `dev/README.md` - Development scripts (building, testing, not for releases)
+- `AGENTS.md` - AI assistant guide (for AI agents working on this project, see https://agents.md/)
 
 ## Files
 
@@ -220,7 +207,3 @@ See [AGENTS.md](AGENTS.md) for detailed development guide.
 - `internal/change/` - Change definition parser
 - `Dockerfile` - Runner image with tools (gh, fleet, gemini, copilot)
 - `tests/` - Integration tests with envtest
-
-## License
-
-See LICENSE file.

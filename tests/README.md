@@ -151,7 +151,7 @@ import (
     "testing"
     . "github.com/onsi/ginkgo/v2"
     . "github.com/onsi/gomega"
-    "github.com/manno/background-coding-agent/tests/utils"
+    "github.com/manno/baca/tests/utils"
 )
 
 var testEnv *envtest.Environment
@@ -181,7 +181,7 @@ package mypackage_test
 import (
     . "github.com/onsi/ginkgo/v2"
     . "github.com/onsi/gomega"
-    "github.com/manno/background-coding-agent/tests/utils"
+    "github.com/manno/baca/tests/utils"
     corev1 "k8s.io/api/core/v1"
     metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

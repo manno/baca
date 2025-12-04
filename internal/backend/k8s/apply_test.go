@@ -17,8 +17,8 @@ func TestGenerateJobName(t *testing.T) {
 			name:    "simple repository",
 			repoURL: "https://github.com/manno/fleet",
 			wantCheck: func(jobName string) error {
-				if !strings.HasPrefix(jobName, "bca-manno-fleet-") {
-					t.Errorf("expected job name to start with 'bca-manno-fleet-', got %s", jobName)
+				if !strings.HasPrefix(jobName, "baca-manno-fleet-") {
+					t.Errorf("expected job name to start with 'baca-manno-fleet-', got %s", jobName)
 				}
 				return nil
 			},
@@ -27,8 +27,8 @@ func TestGenerateJobName(t *testing.T) {
 			name:    "repository with .git suffix",
 			repoURL: "https://github.com/kubernetes/kubernetes.git",
 			wantCheck: func(jobName string) error {
-				if !strings.HasPrefix(jobName, "bca-kubernetes-kubernetes-") {
-					t.Errorf("expected job name to start with 'bca-kubernetes-kubernetes-', got %s", jobName)
+				if !strings.HasPrefix(jobName, "baca-kubernetes-kubernetes-") {
+					t.Errorf("expected job name to start with 'baca-kubernetes-kubernetes-', got %s", jobName)
 				}
 				return nil
 			},
@@ -47,8 +47,8 @@ func TestGenerateJobName(t *testing.T) {
 			name:    "invalid URL (no scheme)",
 			repoURL: "not-a-valid-url",
 			wantCheck: func(jobName string) error {
-				if !strings.HasPrefix(jobName, "bca-job-") {
-					t.Errorf("expected fallback job name to start with 'bca-job-', got %s", jobName)
+				if !strings.HasPrefix(jobName, "baca-job-") {
+					t.Errorf("expected fallback job name to start with 'baca-job-', got %s", jobName)
 				}
 				return nil
 			},
@@ -69,9 +69,9 @@ func TestGenerateJobName(t *testing.T) {
 				t.Errorf("job name should be lowercase, got %s", jobName)
 			}
 
-			// Check it starts with bca-
-			if !strings.HasPrefix(jobName, "bca-") {
-				t.Errorf("job name should start with 'bca-', got %s", jobName)
+			// Check it starts with baca-
+			if !strings.HasPrefix(jobName, "baca-") {
+				t.Errorf("job name should start with 'baca-', got %s", jobName)
 			}
 
 			// Run custom check

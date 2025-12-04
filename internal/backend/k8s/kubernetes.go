@@ -17,7 +17,7 @@ type KubernetesBackend struct {
 	clientset *kubernetes.Clientset
 }
 
-const DefaultImage = "ghcr.io/manno/background-coder:latest"
+const DefaultImage = "ghcr.io/manno/baca-runner:latest"
 
 func New(cfg *rest.Config, namespace string, logger *slog.Logger) (*KubernetesBackend, error) {
 	c, err := NewClient(cfg)

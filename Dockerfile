@@ -40,11 +40,11 @@ RUN echo "Installing Fleet CLI for ${TARGETARCH}..." && \
     echo "Fleet CLI installed successfully" && \
     /usr/local/bin/fleet --version || echo "Fleet version check failed"
 
-# Copy pre-built bca binary (must be built for correct architecture before docker build)
-COPY dist/bca-linux-$TARGETARCH /usr/local/bin/bca
+# Copy pre-built baca binary (must be built for correct architecture before docker build)
+COPY dist/baca-linux-$TARGETARCH /usr/local/bin/baca
 
 # Set working directory for job execution
 WORKDIR /workspace
 
-# Set bca as the default command (can be overridden)
-CMD ["/usr/local/bin/bca"]
+# Set baca as the default command (can be overridden)
+CMD ["/usr/local/bin/baca"]

@@ -1,12 +1,12 @@
-# Background Coding Agent (BCA) - AI Assistant Guide
+# Background Automated Coding Agent (BACA) - AI Assistant Guide
 
-This document provides comprehensive guidance for AI coding assistants working on the Background Coding Agent project.
+This document provides comprehensive guidance for AI coding assistants working on the Background Automated Coding Agent project.
 
 ## ⚠️  SECURITY WARNING
 
 **CRITICAL: Handle all API tokens and credentials with extreme care!**
 
-The tokens used by BCA have **very sensitive permissions**:
+The tokens used by BACA have **very sensitive permissions**:
 - **GITHUB_TOKEN**: Access to repositories, ability to create PRs, read/write code
 - **COPILOT_TOKEN**: Access to GitHub Copilot services
 - **GEMINI_API_KEY**: Access to Google AI services
@@ -26,9 +26,9 @@ The tokens used by BCA have **very sensitive permissions**:
 
 ## Project Overview
 
-Background Coding Agent (BCA) is a platform that allows engineers to execute complex code transformations across multiple repositories using natural language prompts. It orchestrates coding agents (gemini-cli or copilot-cli) through Kubernetes jobs.
+Background Automated Coding Agent (BACA) is a declarative, prompt-driven code transformation platform that allows engineers to execute complex code transformations across multiple repositories using natural language prompts. It orchestrates coding agents (gemini-cli or copilot-cli) through Kubernetes jobs.
 
-**Key Concept:** User creates a Change YAML → BCA creates K8s Jobs (one per repo) → Each job clones repo, runs AI agent, creates PR.
+**Key Concept:** User creates a Change YAML → BACA creates K8s Jobs (one per repo) → Each job clones repo, runs AI agent, creates PR.
 
 ## Current Architecture (December 2025)
 
@@ -38,31 +38,31 @@ Background Coding Agent (BCA) is a platform that allows engineers to execute com
 Pod:
   initContainers:
   - name: fork-setup
-    image: ghcr.io/manno/background-coder:latest
+    image: ghcr.io/manno/baca-runner:latest
     command: gh repo fork $ORIGINAL_REPO_URL
     volumeMounts:
     - name: workspace
       mountPath: /workspace
     envFrom:
-    - secretRef: bca-credentials
+    - secretRef: baca-credentials
 
   - name: git-clone
-    image: ghcr.io/manno/background-coder:latest
+    image: ghcr.io/manno/baca-runner:latest
     command: fleet gitcloner --branch main $FORK_URL /workspace/repo
     volumeMounts:
     - name: workspace
       mountPath: /workspace
     envFrom:
-    - secretRef: bca-credentials
+    - secretRef: baca-credentials
 
   containers:
   - name: runner
-    image: ghcr.io/manno/background-coder:latest
+    image: ghcr.io/manno/baca-runner:latest
     command: |
       cd /workspace/repo
-      git config --global user.name "BCA Bot"
+      git config --global user.name "BACA Bot"
       git remote add upstream $ORIGINAL_REPO_URL
-      bca execute --config "$CONFIG" --work-dir /workspace/repo
+      baca execute --config "$CONFIG" --work-dir /workspace/repo
       git push origin $BRANCH_NAME
       gh pr create --repo $ORIGINAL_REPO --head $FORK_OWNER:$BRANCH_NAME
     env:
@@ -74,7 +74,7 @@ Pod:
     - name: workspace
       mountPath: /workspace
     envFrom:
-    - secretRef: bca-credentials
+    - secretRef: baca-credentials
 
   volumes:
   - name: workspace
@@ -102,11 +102,11 @@ Pod:
 ### Execution Flow
 
 1. **User** creates Change YAML with prompt, repos, agent
-2. **bca apply** creates one Kubernetes Job per repository
+2. **baca apply** creates one Kubernetes Job per repository
 3. **fork-setup init container** runs `gh repo fork` to create/sync fork in user's account
 4. **git-clone init container** runs `fleet gitcloner --branch main $FORK_URL /workspace/repo`
 5. **Main Container** receives JSON config via `$CONFIG` environment variable
-6. **bca execute** parses JSON, downloads resources (agentsmd, resources), runs agent
+6. **baca execute** parses JSON, downloads resources (agentsmd, resources), runs agent
 7. **Agent** (copilot or gemini) executes transformation on fork
 8. **git push** pushes changes to fork
 9. **gh pr create** creates cross-fork pull request to original repo
@@ -205,7 +205,7 @@ spec:
   agentsmd: https://example.com/agents.md   # OPTIONAL: Agent instructions
   resources:                                # OPTIONAL: Additional documentation
   - https://example.com/docs/guide.md
-  image: ghcr.io/manno/background-coder:latest  # OPTIONAL: Custom runner image
+  image: ghcr.io/manno/baca-runner:latest  # OPTIONAL: Custom runner image
 ```
 
 **Field Details:**
@@ -387,7 +387,7 @@ Set `CI_USE_EXISTING_CLUSTER=true` to use k3d cluster instead of envtest.
 
 **Base Image:** `catthehacker/ubuntu:act-latest`
 **Location:** `Dockerfile`
-**Registry:** `ghcr.io/manno/background-coder:latest`
+**Registry:** `ghcr.io/manno/baca-runner:latest`
 
 **Includes:**
 - Node.js v20.19.6 (upgraded from v18 for gemini/copilot)
@@ -395,7 +395,7 @@ Set `CI_USE_EXISTING_CLUSTER=true` to use k3d cluster instead of envtest.
 - `fleet` v0.14.0 (Fleet gitcloner for repo cloning)
 - `@google/gemini-cli` (npm package)
 - `@github/copilot` (npm package)
-- `bca` binary (copied during build)
+- `baca` binary (copied during build)
 
 **Build Process:**
 ```bash
@@ -422,7 +422,7 @@ Creates controller-runtime client with custom scheme including Batch/v1 for Jobs
 
 `KubernetesBackend` struct holds client, namespace, and logger.
 
-**Default Image:** `ghcr.io/manno/background-coder:latest`
+**Default Image:** `ghcr.io/manno/baca-runner:latest`
 
 ### Apply Logic
 
@@ -435,7 +435,7 @@ Creates controller-runtime client with custom scheme including Batch/v1 for Jobs
 - `monitorJobs()`: Watches job status when --wait flag is used
 
 **Job Naming:**
-- Format: `bca-{sanitized-repo}-{random-8-chars}`
+- Format: `baca-{sanitized-repo}-{random-8-chars}`
 - Random suffix prevents conflicts on retry
 - Sanitized repo name from URL (max 63 chars K8s limit)
 
@@ -451,7 +451,7 @@ Creates controller-runtime client with custom scheme including Batch/v1 for Jobs
 
 **File:** `cmd/setup.go`
 
-Creates namespace and `bca-credentials` secret with tokens:
+Creates namespace and `baca-credentials` secret with tokens:
 - `GITHUB_TOKEN`: For git clone and PR creation
 - `COPILOT_TOKEN`: For Copilot CLI (optional, falls back to GITHUB_TOKEN)
 - `GEMINI_API_KEY`: For Gemini CLI (optional)
@@ -462,7 +462,7 @@ Creates namespace and `bca-credentials` secret with tokens:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: bca-credentials
+  name: baca-credentials
 stringData:
   GITHUB_TOKEN: "ghp_..."
   COPILOT_TOKEN: "github_pat_..."  # optional
@@ -476,7 +476,7 @@ Credentials are injected via `envFrom`:
 ```yaml
 envFrom:
 - secretRef:
-    name: bca-credentials
+    name: baca-credentials
 ```
 
 ## Execute Command
@@ -584,7 +584,7 @@ kubectl logs -n test <pod-name> -c runner
 ./dev/import-image-k3d.sh
 
 # Check image in k3d
-docker exec k3d-upstream-server-0 crictl images | grep background-coder
+docker exec k3d-upstream-server-0 crictl images | grep baca-runner
 ```
 
 ### Job Debugging
