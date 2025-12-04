@@ -101,15 +101,17 @@ Pod:
 
 ### Execution Flow
 
-1. **User** creates Change YAML with prompt, repos, agent
+1. **User** creates Change YAML with target repos (original repos, not forks)
 2. **baca apply** creates one Kubernetes Job per repository
-3. **fork-setup init container** runs `gh repo fork` to create/sync fork in user's account
-4. **git-clone init container** runs `fleet gitcloner --branch main $FORK_URL /workspace/repo`
+3. **fork-setup init container** runs `gh repo fork <target-repo>` to create/sync fork in user's account
+   - If fork exists, verifies it's actually a fork (fails with error if repo exists but is NOT a fork)
+   - If fork doesn't exist, creates fork from target repo
+4. **git-clone init container** runs `fleet gitcloner --branch main <fork-url> /workspace/repo`
 5. **Main Container** receives JSON config via `$CONFIG` environment variable
 6. **baca execute** parses JSON, downloads resources (agentsmd, resources), runs agent
 7. **Agent** (copilot or gemini) executes transformation on fork
 8. **git push** pushes changes to fork
-9. **gh pr create** creates cross-fork pull request to original repo
+9. **gh pr create** creates cross-fork pull request from fork to target repo
 10. **Job cleanup** happens automatically after 5 minutes (TTL)
 
 ### Key Design Decisions
@@ -210,7 +212,7 @@ spec:
 
 **Field Details:**
 - `prompt`: Natural language description - can contain quotes, special chars (protected by JSON)
-- `repos`: List of full GitHub URLs
+- `repos`: List of full GitHub URLs to **target repositories** (BACA auto-forks to your account)
 - `agent`: Logical agent name (maps to command via `internal/agent/config.go`)
 - `branch`: Git branch to check out (defaults to "main")
 - `agentsmd`: URL downloaded to `agents.md` in repo root

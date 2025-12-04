@@ -34,8 +34,23 @@ echo "Fork owner: $FORK_OWNER"
 REPO_NAME=$(echo "$REPO_PATH" | cut -d'/' -f2)
 if gh repo view "$FORK_OWNER/$REPO_NAME" >/dev/null 2>&1; then
   echo "Fork already exists: $FORK_OWNER/$REPO_NAME"
-  # Sync fork with upstream to get latest changes
-  gh repo sync "$FORK_OWNER/$REPO_NAME" --branch main || echo "Warning: sync failed, continuing anyway"
+  
+  # Verify it's actually a fork
+  IS_FORK=$(gh api "repos/$FORK_OWNER/$REPO_NAME" --jq .fork)
+  if [ "$IS_FORK" != "true" ]; then
+    echo "ERROR: Repository $FORK_OWNER/$REPO_NAME exists but is NOT a fork!"
+    echo "BACA requires repos to be forks. Please delete $FORK_OWNER/$REPO_NAME or use a different repository."
+    exit 1
+  fi
+  
+  # Try to sync fork with upstream (non-fatal if it fails due to conflicts/divergence)
+  echo "Attempting to sync fork with upstream..."
+  if gh repo sync "$FORK_OWNER/$REPO_NAME" --branch main; then
+    echo "Fork synced successfully"
+  else
+    echo "Warning: Fork sync failed (possibly due to conflicts or divergent history)"
+    echo "This is usually fine - BACA will work from the fork's current state"
+  fi
 else
   echo "Creating fork: $FORK_OWNER/$REPO_NAME"
   gh repo fork "$REPO_PATH" --clone=false

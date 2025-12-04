@@ -48,6 +48,8 @@ spec:
   branch: main        # optional, defaults to main
 ```
 
+**Note:** Specify the target repositories you want to modify (e.g., `https://github.com/myorg/repo1`). BACA will automatically create forks in your account if they don't exist. If a repository with the same name already exists in your account but is NOT a fork, the job will fail with an error.
+
 ### 4. Apply
 
 ```bash
@@ -99,13 +101,13 @@ Options:
 kind: Change
 apiVersion: v1
 spec:
-  prompt: "Natural language description"       # REQUIRED
-  repos: ["https://github.com/org/repo"]      # REQUIRED
-  agent: copilot-cli                          # REQUIRED: copilot-cli or gemini-cli
-  branch: main                                 # optional, default: main
-  agentsmd: "https://example.com/agents.md"   # optional
-  resources: ["https://example.com/docs.md"]  # optional
-  image: ghcr.io/manno/baca-runner:latest # optional
+  prompt: "Natural language description"                 # REQUIRED
+  repos: ["https://github.com/org/repo"]                # REQUIRED: Target repos (BACA auto-forks)
+  agent: copilot-cli                                     # REQUIRED: copilot-cli or gemini-cli
+  branch: main                                            # optional, default: main
+  agentsmd: "https://example.com/agents.md"              # optional
+  resources: ["https://example.com/docs.md"]             # optional
+  image: ghcr.io/manno/baca-runner:latest                # optional
 ```
 
 ## Architecture
@@ -145,9 +147,22 @@ BACA uses a **staging fork approach** to limit token exposure:
 2. **Token scope**: `GITHUB_TOKEN` only needs write access to user's forks and PR creation on target repos
 3. **Cross-fork PRs**: Pull requests are created from `user-fork:branch` → `original-repo:main`
 
+**How it works:**
+- You specify the **target repository** (e.g., `https://github.com/myorg/repo`)
+- BACA automatically forks it to your account (e.g., `youruser/repo`)
+- All changes are made in your fork
+- PR is created from your fork back to the target
+
+**⚠️ IMPORTANT: Fork name collision protection**
+
+If a repository with the same name already exists in your account but is **NOT a fork**, the job will fail with an error. This prevents accidental modification of your own repositories. If this happens:
+- Delete the non-fork repository from your account, OR
+- Rename your existing repository to avoid the collision
+
 **What this protects against:**
 - Malicious prompts cannot directly push to production repos
 - Fork serves as isolation boundary for untrusted code execution
+- Prevents accidental modification of non-fork repositories in your account
 
 **Remaining considerations for shared usage:**
 - Tokens can still create PRs (potential for spam)
