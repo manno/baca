@@ -1,6 +1,7 @@
 kind: Change
 apiVersion: v1
 spec:
+  # running golangci-lint needs lots of ram with large repos
   prompt: |
     Remove the exclusion rules from the golangci-lint configuration file in the repository.
     Run golangci-lint and fix any issues found in the codebase.

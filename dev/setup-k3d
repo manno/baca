@@ -14,7 +14,7 @@ unique_tls_port=${unique_tls_port-443}
 name=${1-upstream}
 
 k3d cluster create "$name" \
-  --servers 3 \
+  --servers 1 \
   --api-port "$unique_api_port" \
   -p "$unique_tls_port:443@server:0" \
   --k3s-arg '--tls-san=k3d-upstream-server-0@server:0' \

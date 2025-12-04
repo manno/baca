@@ -88,12 +88,13 @@ baca setup --namespace <ns> [--copilot-token | --gemini-api-key | --gemini-oauth
 Execute code transformations.
 
 ```bash
-baca apply <change-file> --namespace <ns> [--wait] [--retries N]
+baca apply <change-file> --namespace <ns> [--wait] [--retries N] [--fork-org ORG]
 ```
 
 Options:
 - `--wait`: Wait for completion (default: true)
 - `--retries`: Number of times to retry failed jobs (default: 0)
+- `--fork-org`: GitHub organization/user to create forks under (default: authenticated user)
 
 ## Change Definition
 
@@ -149,13 +150,26 @@ BACA uses a **staging fork approach** to limit token exposure:
 
 **How it works:**
 - You specify the **target repository** (e.g., `https://github.com/myorg/repo`)
-- BACA automatically forks it to your account (e.g., `youruser/repo`)
-- All changes are made in your fork
-- PR is created from your fork back to the target
+- BACA automatically forks it to your account (or specified `--fork-org`)
+- All changes are made in the fork
+- PR is created from the fork back to the target
+
+**Fork Organization Override:**
+
+By default, forks are created in the authenticated user's account. Use `--fork-org` to specify a different organization:
+
+```bash
+baca apply my-change.yaml --namespace baca-jobs --fork-org my-team
+```
+
+This is useful for:
+- Creating forks in a shared team organization
+- Isolating BACA forks from personal repositories
+- Managing access control via organization membership
 
 **⚠️ IMPORTANT: Fork name collision protection**
 
-If a repository with the same name already exists in your account but is **NOT a fork**, the job will fail with an error. This prevents accidental modification of your own repositories. If this happens:
+If a repository with the same name already exists in the target account (your user or `--fork-org`) but is **NOT a fork**, the job will fail with an error. This prevents accidental modification of your own repositories. If this happens:
 - Delete the non-fork repository from your account, OR
 - Rename your existing repository to avoid the collision
 
@@ -173,7 +187,7 @@ If a repository with the same name already exists in your account but is **NOT a
 
 Each repository gets a Kubernetes job with three containers:
 
-1. **Init: fork-setup** - Creates/syncs fork in user's GitHub account
+1. **Init: fork-setup** - Creates/syncs fork in user's account (or `--fork-org`)
 2. **Init: git-clone** - Clones fork to shared `/workspace` volume
 3. **Main: runner** - Runs AI agent, commits changes, pushes to fork, creates PR
 
@@ -228,7 +242,8 @@ ginkgo -v ./tests/...                # Integration tests
 ## Files
 
 - `cmd/` - CLI commands (setup, apply, execute)
-- `internal/backend/` - Kubernetes job management
+- `internal/backend/k8s/` - Kubernetes job management
+  - `scripts/` - Embedded bash scripts for job containers
 - `internal/agent/` - Agent executor and configuration
 - `internal/change/` - Change definition parser
 - `Dockerfile` - Runner image with tools (gh, fleet, gemini, copilot)

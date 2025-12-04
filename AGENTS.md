@@ -102,8 +102,9 @@ Pod:
 ### Execution Flow
 
 1. **User** creates Change YAML with target repos (original repos, not forks)
-2. **baca apply** creates one Kubernetes Job per repository
-3. **fork-setup init container** runs `gh repo fork <target-repo>` to create/sync fork in user's account
+2. **baca apply** creates one Kubernetes Job per repository (optionally with `--fork-org`)
+3. **fork-setup init container** runs `gh repo fork <target-repo>` to create/sync fork
+   - Uses `--fork-org` if provided, otherwise authenticated user's account
    - If fork exists, verifies it's actually a fork (fails with error if repo exists but is NOT a fork)
    - If fork doesn't exist, creates fork from target repo
 4. **git-clone init container** runs `fleet gitcloner --branch main <fork-url> /workspace/repo`
@@ -117,6 +118,7 @@ Pod:
 ### Key Design Decisions
 
 - **Staging fork**: Security isolation - changes pushed to fork, not target repo
+- **Fork org override**: `--fork-org` flag allows specifying where to create forks
 - **No ConfigMap**: Pass config as JSON env var (simpler, no extra resource)
 - **fleet gitcloner**: Handles git auth automatically from GITHUB_TOKEN
 - **Single JSON**: Avoids shell escaping nightmare with multiple env vars
@@ -141,7 +143,10 @@ Pod:
 │   │       ├── client.go      # K8s client setup
 │   │       ├── kubernetes.go  # Backend implementation
 │   │       ├── apply.go       # Job creation logic
-│   │       └── setup.go       # Backend setup
+│   │       ├── setup.go       # Backend setup
+│   │       └── scripts/       # Embedded bash scripts
+│   │           ├── fork-setup.sh   # Fork creation/sync
+│   │           └── job-runner.sh   # Agent execution & PR
 │   └── change/            # Change definition
 │       ├── types.go       # Change struct
 │       └── parser.go      # YAML parser & validation
@@ -184,6 +189,7 @@ Start simple, iterate. Don't add features until they're needed.
 - Run `dev/build.sh` to verify compilation after code changes
 - Minimal comments - only for clarification
 - Write integration tests for K8s interactions (see tests/README.md)
+- **When testing changes locally**: Use `go run ./main.go apply change.yaml` to avoid stale binary issues
 
 ### Logging
 Use structured logging with slog:

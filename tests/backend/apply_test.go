@@ -90,7 +90,7 @@ var _ = Describe("Backend Apply", func() {
 				},
 			}
 
-			err := b.ApplyChange(ctx, ch, false, 0)
+			err := b.ApplyChange(ctx, ch, false, 0, "")
 			Expect(err).NotTo(HaveOccurred())
 
 			jobList := &batchv1.JobList{}
@@ -119,7 +119,7 @@ var _ = Describe("Backend Apply", func() {
 				},
 			}
 
-			err := b.ApplyChange(ctx, ch, false, 0)
+			err := b.ApplyChange(ctx, ch, false, 0, "")
 			Expect(err).NotTo(HaveOccurred())
 
 			jobList := &batchv1.JobList{}
@@ -146,7 +146,7 @@ var _ = Describe("Backend Apply", func() {
 				},
 			}
 
-			err := b.ApplyChange(ctx, ch, false, 0)
+			err := b.ApplyChange(ctx, ch, false, 0, "")
 			Expect(err).NotTo(HaveOccurred())
 
 			jobList := &batchv1.JobList{}
@@ -170,7 +170,7 @@ var _ = Describe("Backend Apply", func() {
 				},
 			}
 
-			err := b.ApplyChange(ctx, ch, false, 0)
+			err := b.ApplyChange(ctx, ch, false, 0, "")
 			Expect(err).NotTo(HaveOccurred())
 
 			jobList := &batchv1.JobList{}
@@ -182,6 +182,84 @@ var _ = Describe("Backend Apply", func() {
 			status, err := b.GetJobStatus(ctx, jobName)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(status).To(BeElementOf("Pending", "Running"))
+		})
+
+		It("sets FORK_ORG environment variable when fork-org is specified", func() {
+			ch := &change.Change{
+				APIVersion: "v1",
+				Kind:       "Change",
+				Spec: change.ChangeSpec{
+					Prompt: "Add tests",
+					Repos: []string{
+						"https://github.com/example/repo1",
+					},
+					Agent: "copilot-cli",
+				},
+			}
+
+			err := b.ApplyChange(ctx, ch, false, 0, "test-org")
+			Expect(err).NotTo(HaveOccurred())
+
+			jobList := &batchv1.JobList{}
+			err = k8sClient.List(ctx, jobList, client.InNamespace(namespace))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(jobList.Items).To(HaveLen(1))
+
+			// Check fork-setup init container has FORK_ORG env var
+			job := jobList.Items[0]
+			Expect(job.Spec.Template.Spec.InitContainers).To(HaveLen(2))
+			forkSetupContainer := job.Spec.Template.Spec.InitContainers[0]
+			Expect(forkSetupContainer.Name).To(Equal("fork-setup"))
+
+			var foundForkOrg bool
+			var forkOrgValue string
+			for _, env := range forkSetupContainer.Env {
+				if env.Name == "FORK_ORG" {
+					foundForkOrg = true
+					forkOrgValue = env.Value
+					break
+				}
+			}
+			Expect(foundForkOrg).To(BeTrue(), "FORK_ORG environment variable should be set")
+			Expect(forkOrgValue).To(Equal("test-org"))
+		})
+
+		It("sets empty FORK_ORG when fork-org is not specified", func() {
+			ch := &change.Change{
+				APIVersion: "v1",
+				Kind:       "Change",
+				Spec: change.ChangeSpec{
+					Prompt: "Add tests",
+					Repos: []string{
+						"https://github.com/example/repo1",
+					},
+					Agent: "copilot-cli",
+				},
+			}
+
+			err := b.ApplyChange(ctx, ch, false, 0, "")
+			Expect(err).NotTo(HaveOccurred())
+
+			jobList := &batchv1.JobList{}
+			err = k8sClient.List(ctx, jobList, client.InNamespace(namespace))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(jobList.Items).To(HaveLen(1))
+
+			// Check fork-setup init container has empty FORK_ORG env var
+			job := jobList.Items[0]
+			forkSetupContainer := job.Spec.Template.Spec.InitContainers[0]
+
+			var foundForkOrg bool
+			var forkOrgValue string
+			for _, env := range forkSetupContainer.Env {
+				if env.Name == "FORK_ORG" {
+					foundForkOrg = true
+					forkOrgValue = env.Value
+					break
+				}
+			}
+			Expect(foundForkOrg).To(BeTrue(), "FORK_ORG environment variable should be set")
+			Expect(forkOrgValue).To(Equal(""))
 		})
 	})
 })

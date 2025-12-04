@@ -32,6 +32,7 @@ Monitors job status and reports when all jobs are done.`,
 		namespace, _ := cmd.Flags().GetString("namespace")
 		wait, _ := cmd.Flags().GetBool("wait")
 		retries, _ := cmd.Flags().GetInt32("retries")
+		forkOrg, _ := cmd.Flags().GetString("fork-org")
 
 		cfg, err := k8s.GetConfig(kubeconfig)
 		if err != nil {
@@ -46,7 +47,7 @@ Monitors job status and reports when all jobs are done.`,
 		}
 
 		ctx := cmd.Context()
-		if err := b.ApplyChange(ctx, ch, wait, retries); err != nil {
+		if err := b.ApplyChange(ctx, ch, wait, retries, forkOrg); err != nil {
 			logger.Error("failed to apply change", "error", err)
 			return err
 		}
@@ -63,4 +64,5 @@ func init() {
 	applyCmd.Flags().String("namespace", "default", "kubernetes namespace")
 	applyCmd.Flags().Bool("wait", true, "wait for jobs to complete")
 	applyCmd.Flags().Int32("retries", 0, "number of times to retry failed jobs (BackoffLimit)")
+	applyCmd.Flags().String("fork-org", "", "GitHub organization/user to create forks under (default: authenticated user)")
 }
