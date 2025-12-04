@@ -56,6 +56,16 @@ baca apply my-change.yaml --namespace baca-jobs
 
 Creates one Kubernetes job per repository.
 
+## Examples
+
+Here are real pull requests created by BACA:
+
+- [Add comprehensive README documentation](https://github.com/manno-test/demo-helm-charts/pull/3) - Generated documentation for Helm charts
+- [Add comprehensive documentation and validation](https://github.com/manno-test/demo-app/pull/3) - Added error handling, validation, and docs to Go app
+- [Add comprehensive DESIGN.md documentation](https://github.com/manno/fleet/pull/212) - Created 344-line design doc covering architecture, components, and features
+
+These PRs demonstrate BACA's ability to understand project context and make meaningful, multi-file changes.
+
 ## Prerequisites
 
 - Kubernetes cluster (k3d, minikube, or remote) with kubectl configured

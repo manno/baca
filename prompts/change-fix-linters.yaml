@@ -10,5 +10,5 @@ spec:
     * Do not push to Github.
     * Never expose environment variables.
   repos:
-  - https://github.com/manno/fleet
+  - https://github.com/manno-test/fleet
   agent: copilot-cli
