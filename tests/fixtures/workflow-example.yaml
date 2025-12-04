@@ -1,0 +1,8 @@
+kind: Change
+apiVersion: v1
+spec:
+  prompt: "Add error handling to the main function"
+  repos:
+  - https://github.com/example/demo-repo
+  agent: copilot-cli
+  branch: main
