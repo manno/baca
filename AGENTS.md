@@ -179,7 +179,7 @@ Start simple, iterate. Don't add features until they're needed.
 ### Code Style
 - Use `goimports -w .` for formatting
 - Run `go vet ./...` to catch issues
-- Run `go build` to verify compilation after code changes
+- Run `dev/build.sh` to verify compilation after code changes
 - Minimal comments - only for clarification
 - Write integration tests for K8s interactions (see tests/README.md)
 
@@ -440,8 +440,8 @@ Creates controller-runtime client with custom scheme including Batch/v1 for Jobs
 - Sanitized repo name from URL (max 63 chars K8s limit)
 
 **Job Configuration:**
-- TTLSecondsAfterFinished: 3600 (1 hour cleanup)
-- BackoffLimit: 3 (max retries)
+- TTLSecondsAfterFinished: 300 (5 minutes cleanup)
+- BackoffLimit: 0 (no retries by default, configurable)
 - RestartPolicy: Never
 - ImagePullPolicy: IfNotPresent (for local testing)
 
@@ -646,7 +646,7 @@ kubectl get job <job-name> -n <namespace> -o yaml | grep CONFIG -A20
 - Job creation and monitoring
 - Secret management
 - Git cloning with credentials (init container)
-- Job cleanup (TTL: 1 hour, BackoffLimit: 3)
+- **Job cleanup** (TTL: 5 minutes, BackoffLimit: configurable, default 0)
 - Integration tests (8/8 passing)
 - JSON config for execute command
 - Init container architecture

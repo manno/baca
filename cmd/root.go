@@ -16,7 +16,7 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "baca",
 	Short: "Background Automated Coding Agent - Declarative, prompt-driven code transformation",
-	Long: `Background Automated Coding Agent is a declarative, prompt-driven code transformation platform.`,
+	Long:  `Background Automated Coding Agent is a declarative, prompt-driven code transformation platform.`,
 }
 
 func Execute() error {

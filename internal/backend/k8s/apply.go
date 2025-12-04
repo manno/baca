@@ -127,14 +127,14 @@ git push origin "${BRANCH_NAME}"
 echo "Creating PR: ${FORK_OWNER}:${BRANCH_NAME} -> ${ORIGINAL_PATH}:main"
 gh pr create --repo "${ORIGINAL_PATH}" --head "${FORK_OWNER}:${BRANCH_NAME}" --base main --title "$PR_TITLE" --body "$PR_BODY"`
 
-func (k *KubernetesBackend) ApplyChange(ctx context.Context, c *change.Change, wait bool) error {
+func (k *KubernetesBackend) ApplyChange(ctx context.Context, c *change.Change, wait bool, retries int32) error {
 	k.logger.Info("applying change", "repos", len(c.Spec.Repos))
 
 	var jobNames []string
 	for _, repo := range c.Spec.Repos {
 		k.logger.Info("creating job for repository", "repo", repo)
 
-		job := k.createJob(c, repo)
+		job := k.createJob(c, repo, retries)
 
 		if err := k.client.Create(ctx, job); err != nil {
 			k.logger.Error("failed to create job in kubernetes", "repo", repo, "error", err)
@@ -154,12 +154,15 @@ func (k *KubernetesBackend) ApplyChange(ctx context.Context, c *change.Change, w
 	return nil
 }
 
-func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1.Job {
+func (k *KubernetesBackend) createJob(c *change.Change, repoURL string, retries int32) *batchv1.Job {
 	jobName := k.generateJobName(repoURL)
 	image := c.Spec.Image
 	if image == "" {
 		image = DefaultImage
 	}
+
+	// Use retries from command-line argument
+	backoffLimit := retries
 
 	// Shared volume for repository
 	sharedVolume := corev1.Volume{
@@ -318,8 +321,8 @@ func (k *KubernetesBackend) createJob(c *change.Change, repoURL string) *batchv1
 		},
 		Spec: batchv1.JobSpec{
 			// Automatically clean up jobs after completion
-			TTLSecondsAfterFinished: int32Ptr(300), // Clean up after 5 minutes
-			BackoffLimit:            int32Ptr(0),   // Retry up to 1 times on failure
+			TTLSecondsAfterFinished: int32Ptr(300),          // Clean up after 5 minutes
+			BackoffLimit:            int32Ptr(backoffLimit), // Configurable retries (default: 0)
 			Template: corev1.PodTemplateSpec{
 				Spec: podSpec,
 			},

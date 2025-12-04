@@ -90,7 +90,7 @@ var _ = Describe("Backend Apply", func() {
 				},
 			}
 
-			err := b.ApplyChange(ctx, ch, false)
+			err := b.ApplyChange(ctx, ch, false, 0)
 			Expect(err).NotTo(HaveOccurred())
 
 			jobList := &batchv1.JobList{}
@@ -119,7 +119,7 @@ var _ = Describe("Backend Apply", func() {
 				},
 			}
 
-			err := b.ApplyChange(ctx, ch, false)
+			err := b.ApplyChange(ctx, ch, false, 0)
 			Expect(err).NotTo(HaveOccurred())
 
 			jobList := &batchv1.JobList{}
@@ -146,7 +146,7 @@ var _ = Describe("Backend Apply", func() {
 				},
 			}
 
-			err := b.ApplyChange(ctx, ch, false)
+			err := b.ApplyChange(ctx, ch, false, 0)
 			Expect(err).NotTo(HaveOccurred())
 
 			jobList := &batchv1.JobList{}
@@ -170,7 +170,7 @@ var _ = Describe("Backend Apply", func() {
 				},
 			}
 
-			err := b.ApplyChange(ctx, ch, false)
+			err := b.ApplyChange(ctx, ch, false, 0)
 			Expect(err).NotTo(HaveOccurred())
 
 			jobList := &batchv1.JobList{}

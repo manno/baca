@@ -76,11 +76,12 @@ baca setup --namespace <ns> [--copilot-token | --gemini-api-key | --gemini-oauth
 Execute code transformations.
 
 ```bash
-baca apply <change-file> --namespace <ns> [--wait]
+baca apply <change-file> --namespace <ns> [--wait] [--retries N]
 ```
 
 Options:
 - `--wait`: Wait for completion (default: true)
+- `--retries`: Number of times to retry failed jobs (default: 0)
 
 ## Change Definition
 
