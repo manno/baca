@@ -134,15 +134,15 @@ Pod:
 │   ├── agent/             # Agent configuration and execution
 │   │   ├── config.go      # Agent registry (name → command mapping)
 │   │   └── executor.go    # Downloads resources, runs agent
-│   ├── backend/           # Kubernetes backend
-│   │   ├── client.go      # K8s client setup
-│   │   ├── kubernetes.go  # Backend implementation
-│   │   └── apply.go       # Job creation logic
-│   ├── change/            # Change definition
-│   │   ├── types.go       # Change struct
-│   │   └── parser.go      # YAML parser & validation
-│   └── git/               # Git operations
-│       └── clone.go       # Clone wrapper (unused, kept for reference)
+│   ├── backend/           # Backend implementations
+│   │   └── k8s/           # Kubernetes backend
+│   │       ├── client.go      # K8s client setup
+│   │       ├── kubernetes.go  # Backend implementation
+│   │       ├── apply.go       # Job creation logic
+│   │       └── setup.go       # Backend setup
+│   └── change/            # Change definition
+│       ├── types.go       # Change struct
+│       └── parser.go      # YAML parser & validation
 ├── tests/                 # Integration tests
 │   ├── utils/             # Test utilities (envtest setup)
 │   └── backend/           # Backend integration tests
