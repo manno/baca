@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 
-	"github.com/manno/background-coding-agent/internal/backend"
+	"github.com/manno/background-coding-agent/internal/backend/k8s"
 )
 
 var (
@@ -49,7 +49,7 @@ var _ = BeforeSuite(func() {
 	err = utils.WriteKubeConfig(cfg, kubeconfigPath)
 	Expect(err).NotTo(HaveOccurred())
 
-	k8sClient, err = backend.NewClient(cfg)
+	k8sClient, err = k8s.NewClient(cfg)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 })

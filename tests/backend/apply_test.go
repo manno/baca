@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/manno/background-coding-agent/internal/backend"
+	"github.com/manno/background-coding-agent/internal/backend/k8s"
 	"github.com/manno/background-coding-agent/internal/change"
 	"github.com/manno/background-coding-agent/tests/utils"
 
@@ -20,7 +20,7 @@ import (
 
 var _ = Describe("Backend Apply", func() {
 	var logger *slog.Logger
-	var b *backend.KubernetesBackend
+	var b *k8s.KubernetesBackend
 
 	BeforeEach(func() {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -42,7 +42,7 @@ var _ = Describe("Backend Apply", func() {
 			})).ToNot(HaveOccurred())
 		})
 
-		b, err = backend.New(cfg, namespace, logger)
+		b, err = k8s.New(cfg, namespace, logger)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Setup credentials - use real tokens from environment if available, otherwise use test tokens

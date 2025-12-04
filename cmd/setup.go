@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/manno/background-coding-agent/internal/backend"
+	"github.com/manno/background-coding-agent/internal/backend/k8s"
 	"github.com/spf13/cobra"
 )
 
@@ -130,13 +130,13 @@ Gemini authentication (if using gemini-cli agent, choose one):
 			logger.Info("using gemini oauth authentication", "files", len(geminiFiles))
 		}
 
-		cfg, err := backend.GetConfig(kubeconfig)
+		cfg, err := k8s.GetConfig(kubeconfig)
 		if err != nil {
 			logger.Error("failed to get kubernetes config", "error", err)
 			return err
 		}
 
-		backend, err := backend.New(cfg, namespace, logger)
+		backend, err := k8s.New(cfg, namespace, logger)
 		if err != nil {
 			logger.Error("failed to create backend", "error", err)
 			return err

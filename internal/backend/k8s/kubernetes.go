@@ -1,5 +1,5 @@
 // Package backend implements a Kubernetes backend for running coding agent jobs.
-package backend
+package k8s
 
 import (
 	"fmt"

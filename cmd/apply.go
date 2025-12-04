@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/manno/background-coding-agent/internal/backend"
+	"github.com/manno/background-coding-agent/internal/backend/k8s"
 	"github.com/manno/background-coding-agent/internal/change"
 	"github.com/spf13/cobra"
 )
@@ -32,13 +32,13 @@ Monitors job status and reports when all jobs are done.`,
 		namespace, _ := cmd.Flags().GetString("namespace")
 		wait, _ := cmd.Flags().GetBool("wait")
 
-		cfg, err := backend.GetConfig(kubeconfig)
+		cfg, err := k8s.GetConfig(kubeconfig)
 		if err != nil {
 			logger.Error("failed to get kubernetes config", "error", err)
 			return err
 		}
 
-		b, err := backend.New(cfg, namespace, logger)
+		b, err := k8s.New(cfg, namespace, logger)
 		if err != nil {
 			logger.Error("failed to create backend", "error", err)
 			return err

@@ -1,4 +1,4 @@
-package backend
+package k8s
 
 import (
 	"context"

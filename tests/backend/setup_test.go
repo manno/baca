@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/manno/background-coding-agent/internal/backend"
+	"github.com/manno/background-coding-agent/internal/backend/k8s"
 	"github.com/manno/background-coding-agent/tests/utils"
 
 	corev1 "k8s.io/api/core/v1"
@@ -41,7 +41,7 @@ var _ = Describe("Backend Setup", func() {
 
 	When("Creating KubernetesBackend", func() {
 		It("successfully creates backend with config", func() {
-			b, err := backend.New(cfg, namespace, logger)
+			b, err := k8s.New(cfg, namespace, logger)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(b).NotTo(BeNil())
 		})
@@ -49,7 +49,7 @@ var _ = Describe("Backend Setup", func() {
 
 	When("Setting up credentials", func() {
 		It("creates secret with all credentials", func() {
-			b, err := backend.New(cfg, namespace, logger)
+			b, err := k8s.New(cfg, namespace, logger)
 			Expect(err).NotTo(HaveOccurred())
 
 			credentials := map[string]string{
@@ -70,7 +70,7 @@ var _ = Describe("Backend Setup", func() {
 		})
 
 		It("updates existing secret", func() {
-			b, err := backend.New(cfg, namespace, logger)
+			b, err := k8s.New(cfg, namespace, logger)
 			Expect(err).NotTo(HaveOccurred())
 
 			credentials := map[string]string{
@@ -101,7 +101,7 @@ var _ = Describe("Backend Setup", func() {
 
 	When("Using GetConfig", func() {
 		It("can get config from kubeconfig file", func() {
-			cfg2, err := backend.GetConfig(kubeconfigPath)
+			cfg2, err := k8s.GetConfig(kubeconfigPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(cfg2).NotTo(BeNil())
 			Expect(cfg2.Host).To(Equal(cfg.Host))
