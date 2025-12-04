@@ -1,5 +1,7 @@
 # Background Automated Coding Agent (BACA)
 
+![BAKA!](docs/baka.jpg)
+
 BACA is a declarative, prompt-driven code transformation platform that orchestrates AI coding agents (Copilot or Gemini) across multiple repositories simultaneously. Write a natural language prompt, specify your repositories, and BACA creates Kubernetes jobs that clone, transform, and submit pull requests automatically.
 
 **Use cases:**
