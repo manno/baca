@@ -58,7 +58,7 @@ Monitors job status and reports when all jobs are done.`,
 }
 
 func init() {
-	rootCmd.AddCommand(applyCmd)
+	k8sCmd.AddCommand(applyCmd)
 
 	applyCmd.Flags().String("kubeconfig", "", "path to kubeconfig file")
 	applyCmd.Flags().String("namespace", "default", "kubernetes namespace")

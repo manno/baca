@@ -43,7 +43,7 @@ var cloneCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(cloneCmd)
+	k8sCmd.AddCommand(cloneCmd)
 
 	cloneCmd.Flags().String("output", ".", "output directory")
 	cloneCmd.Flags().String("branch", "", "branch to clone")

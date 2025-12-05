@@ -2,7 +2,7 @@
 
 ![BAKA!](docs/baka.jpg)
 
-BACA is a declarative, prompt-driven code transformation platform that orchestrates AI coding agents (Copilot or Gemini) across multiple repositories simultaneously. Write a natural language prompt, specify your repositories, and BACA creates Kubernetes jobs that clone, transform, and submit pull requests automatically.
+BACA is a declarative, prompt-driven code transformation platform that orchestrates AI coding agents (Copilot or Gemini) across multiple repositories simultaneously. Write a natural language prompt, specify your repositories, and BACA can use either Kubernetes Jobs or GitHub Actions to clone, transform, and submit pull requests automatically.
 
 **Use cases:**
 - Apply security fixes across dozens of microservices
@@ -10,7 +10,14 @@ BACA is a declarative, prompt-driven code transformation platform that orchestra
 - Update dependencies with code changes
 - Migrate APIs across all consuming services
 
-## Quick Start
+## Execution Backends
+
+BACA supports two execution backends:
+
+- **Kubernetes (`k8s`)**: (Default) Executes transformations in Kubernetes Jobs. Powerful, scalable, and isolated. Requires access to a Kubernetes cluster.
+- **GitHub Actions (`gha`)**: Executes transformations using GitHub Actions workflows. Lower barrier to entry, no Kubernetes required.
+
+## Quick Start (Kubernetes)
 
 ### 1. Build BACA
 
@@ -27,7 +34,7 @@ export GITHUB_TOKEN=ghp_xxx         # Required: git clone, fork, PR creation
 export COPILOT_TOKEN=github_pat_xxx # OR
 export GEMINI_API_KEY=xxx           # Choose your agent
 
-baca setup --namespace baca-jobs
+baca k8s setup --namespace baca-jobs
 ```
 
 **Token requirements:**
@@ -55,48 +62,65 @@ spec:
 ### 4. Apply
 
 ```bash
-baca apply my-change.yaml --namespace baca-jobs
+baca k8s apply my-change.yaml --namespace baca-jobs
 ```
 
 Creates one Kubernetes job per repository.
 
-## Examples
+## Quick Start (GitHub Actions)
 
-Here are real pull requests created by BACA:
+### 1. Build BACA
 
-- [Add comprehensive README documentation](https://github.com/manno-test/demo-helm-charts/pull/3) - Generated documentation for Helm charts
-- [Add comprehensive documentation and validation](https://github.com/manno-test/demo-app/pull/3) - Added error handling, validation, and docs to Go app
-- [Add comprehensive DESIGN.md documentation](https://github.com/manno/fleet/pull/212) - Created 344-line design doc covering architecture, components, and features
+```bash
+git clone https://github.com/manno/baca
+cd baca
+go build -o baca .
+```
 
-These PRs demonstrate BACA's ability to understand project context and make meaningful, multi-file changes.
+### 2. Setup Workflow
 
-## Prerequisites
+In the repository where you want to run the transformations (or a central one), create the workflow file:
 
-- Kubernetes cluster (k3d, minikube, or remote) with kubectl configured
-- Go 1.25+ (for building from source)
+```bash
+# This creates the workflow file locally
+baca gha setup --workflow-path .github/workflows/baca-execute.yml
+
+# Commit and push this file to your repository's default branch.
+```
+
+Then, add the following secrets to your repository's settings (`Settings > Secrets and variables > Actions`):
+- `COPILOT_TOKEN`
+- `GEMINI_API_KEY`
+
+### 3. Create Change Definition
+
+Same as the Kubernetes example.
+
+### 4. Apply
+
+Trigger the workflow for the repositories in your change file.
+
+```bash
+export GITHUB_TOKEN=ghp_xxx # Required to call the GitHub API
+
+baca gha apply my-change.yaml --repo your-org/your-repo-with-workflow
+```
 
 ## Commands
 
-### setup
+### `k8s`
 
-Setup Kubernetes backend with credentials.
+Manage the Kubernetes backend.
 
-```bash
-baca setup --namespace <ns> [--copilot-token | --gemini-api-key | --gemini-oauth]
-```
+- `baca k8s setup --namespace <ns> [--copilot-token | --gemini-api-key | --gemini-oauth]`: Setup Kubernetes backend with credentials.
+- `baca k8s apply <change-file> --namespace <ns> [--wait] [--retries N] [--fork-org ORG]`: Execute code transformations using Kubernetes jobs.
 
-### apply
+### `gha`
 
-Execute code transformations.
+Manage the GitHub Actions backend.
 
-```bash
-baca apply <change-file> --namespace <ns> [--wait] [--retries N] [--fork-org ORG]
-```
-
-Options:
-- `--wait`: Wait for completion (default: true)
-- `--retries`: Number of times to retry failed jobs (default: 0)
-- `--fork-org`: GitHub organization/user to create forks under (default: authenticated user)
+- `baca gha setup [--workflow-path <path>]`: Create the GitHub Actions workflow file locally.
+- `baca gha apply <change-file> --repo <owner/repo>`: Execute code transformations by triggering a `workflow_dispatch` event.
 
 ## Change Definition
 
@@ -110,10 +134,12 @@ spec:
   branch: main                                            # optional, default: main
   agentsmd: "https://example.com/agents.md"              # optional
   resources: ["https://example.com/docs.md"]             # optional
-  image: ghcr.io/manno/baca-runner:latest                # optional
+  image: ghcr.io/manno/baca-runner:latest                # optional (k8s only)
 ```
 
 ## Architecture
+
+### Kubernetes Backend
 
 ```
 ┌─────────────┐
@@ -122,7 +148,7 @@ spec:
        │
        v
 ┌─────────────┐
-│ baca apply  │ Creates Kubernetes Jobs (one per repo)
+│ baca k8s apply │ Creates Kubernetes Jobs (one per repo)
 └──────┬──────┘
        │
        v
@@ -142,58 +168,17 @@ spec:
 └───────────────────────────────────────────┘
 ```
 
-### Security Model (Staging Fork Approach)
+### GitHub Actions Backend
 
-BACA uses a **staging fork approach** to limit token exposure:
+`baca gha apply` triggers a `workflow_dispatch` event on the repository specified with `--repo`. The workflow then checks out the code, runs `baca execute`, and creates a PR.
+
+## Security Model (Staging Fork Approach)
+
+BACA uses a **staging fork approach** to limit token exposure, especially in the Kubernetes backend.
 
 1. **Fork isolation**: Changes are pushed to a fork in the authenticated user's account, not directly to target repos
 2. **Token scope**: `GITHUB_TOKEN` only needs write access to user's forks and PR creation on target repos
 3. **Cross-fork PRs**: Pull requests are created from `user-fork:branch` → `original-repo:main`
-
-**How it works:**
-- You specify the **target repository** (e.g., `https://github.com/myorg/repo`)
-- BACA automatically forks it to your account (or specified `--fork-org`)
-- All changes are made in the fork
-- PR is created from the fork back to the target
-
-**Fork Organization Override:**
-
-By default, forks are created in the authenticated user's account. Use `--fork-org` to specify a different organization:
-
-```bash
-baca apply my-change.yaml --namespace baca-jobs --fork-org my-team
-```
-
-This is useful for:
-- Creating forks in a shared team organization
-- Isolating BACA forks from personal repositories
-- Managing access control via organization membership
-
-**⚠️ IMPORTANT: Fork name collision protection**
-
-If a repository with the same name already exists in the target account (your user or `--fork-org`) but is **NOT a fork**, the job will fail with an error. This prevents accidental modification of your own repositories. If this happens:
-- Delete the non-fork repository from your account, OR
-- Rename your existing repository to avoid the collision
-
-**What this protects against:**
-- Malicious prompts cannot directly push to production repos
-- Fork serves as isolation boundary for untrusted code execution
-- Prevents accidental modification of non-fork repositories in your account
-
-**Remaining considerations for shared usage:**
-- Tokens can still create PRs (potential for spam)
-- Agent API tokens (Copilot/Gemini) are still exposed to job environment
-- No isolation between different users' jobs in same namespace
-
-## How It Works
-
-Each repository gets a Kubernetes job with three containers:
-
-1. **Init: fork-setup** - Creates/syncs fork in user's account (or `--fork-org`)
-2. **Init: git-clone** - Clones fork to shared `/workspace` volume
-3. **Main: runner** - Runs AI agent, commits changes, pushes to fork, creates PR
-
-Configuration passed as JSON via environment variable. Jobs auto-cleanup after 5 minutes. No retries by default (configurable with `--retries`).
 
 ## Supported Agents
 
@@ -201,25 +186,6 @@ Configuration passed as JSON via environment variable. Jobs auto-cleanup after 5
 - **gemini-cli**: Google Gemini (requires API key or OAuth)
 
 Add new agents in `internal/agent/config.go`.
-
-## Troubleshooting
-
-**Jobs fail with authentication errors:**
-```bash
-kubectl get secret baca-credentials -n <namespace> -o yaml
-kubectl logs -n <namespace> <job-pod> --all-containers
-```
-
-**Clean up failed jobs:**
-```bash
-kubectl delete jobs -n <namespace> --all
-```
-
-**Check job status:**
-```bash
-kubectl get jobs -n <namespace>
-kubectl describe job <job-name> -n <namespace>
-```
 
 ## Development
 
@@ -235,18 +201,3 @@ Test:
 go test ./internal/...               # Unit tests
 ginkgo -v ./tests/...                # Integration tests
 ```
-
-**Documentation:**
-- `tests/README.md` - Testing documentation
-- `dev/README.md` - Development scripts (building, testing, not for releases)
-- `AGENTS.md` - AI assistant guide (for AI agents working on this project, see https://agents.md/)
-
-## Files
-
-- `cmd/` - CLI commands (setup, apply, execute)
-- `internal/backend/k8s/` - Kubernetes job management
-  - `scripts/` - Embedded bash scripts for job containers
-- `internal/agent/` - Agent executor and configuration
-- `internal/change/` - Change definition parser
-- `Dockerfile` - Runner image with tools (gh, fleet, gemini, copilot)
-- `tests/` - Integration tests with envtest

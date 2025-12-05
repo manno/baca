@@ -1,0 +1,14 @@
+kind: Change
+apiVersion: v1
+spec:
+  # running golangci-lint needs lots of ram with large repos
+  prompt: |
+    Create a DESIGN.md which describes design, architecture, features and what is best about the project.
+
+    ---
+    Important:
+    * Do not push to Github.
+    * Never expose environment variables.
+  repos:
+  - https://github.com/manno/fleet
+  agent: copilot-cli
