@@ -85,9 +85,86 @@ Setup Kubernetes backend with credentials.
 baca setup --namespace <ns> [--copilot-token | --gemini-api-key | --gemini-oauth]
 ```
 
+### workflow
+
+Interactive refinement before applying changes.
+
+```bash
+baca workflow --change <change-file> --namespace <ns> [--skip-interactive] [--wait] [--mcp <sources>]
+```
+
+The workflow command provides an interactive session that:
+1. Asks clarifying questions about your task
+2. Gathers additional context and requirements
+3. **Optionally gathers context from external sources (GitHub issues/PRs, etc.)**
+4. Generates a refined prompt with all details
+5. Shows the refined prompt for confirmation
+6. Applies the change to all repositories
+
+Options:
+- `--skip-interactive`: Skip refinement and apply directly (bypass workflow)
+- `--wait`: Wait for job completion (default: false)
+- `--mcp <sources>`: Gather context from external sources (comma-separated: `github`,`slack`)
+
+**MCP Context Gathering:**
+
+Enable automatic context gathering from external sources:
+
+```bash
+# Gather context from GitHub (issues and PRs)
+baca workflow --change my-change.yaml --mcp github
+
+# Multiple sources (when implemented)
+baca workflow --change my-change.yaml --mcp github,slack
+```
+
+**Requirements for MCP:**
+- GitHub: `gh` CLI must be installed and authenticated (`gh auth login`)
+- Slack: Coming soon
+
+**How MCP Works:**
+1. Parses your prompt for keywords
+2. Searches GitHub issues and PRs in target repositories
+3. Finds up to 5 most relevant items per repo
+4. Includes full content in refined prompt
+5. Shows sources and URLs for reference
+
+Example workflow session:
+```bash
+$ baca workflow --change my-change.yaml --namespace baca-jobs
+
+=== BACA Workflow Agent ===
+I'll help you refine your task before executing it.
+Answer the questions below, or type 'skip' to skip a question.
+Type 'done' when you're ready to proceed.
+
+Q1: Which specific files or directories should be modified?
+> src/handlers/*.go
+
+Q2: Are there any related issues, PRs, or documentation to reference?
+> Issue #123 describes the error scenarios
+
+Q3: What is the expected behavior after the changes?
+> All HTTP handlers should return proper error responses
+
+...
+
+=== Refined Prompt ===
+# Task Overview
+Add comprehensive error handling to all HTTP handlers
+
+# Clarifications from Discussion
+- src/handlers/*.go
+- Issue #123 describes the error scenarios
+- All HTTP handlers should return proper error responses
+======================
+
+Proceed with this refined prompt? (y/n): y
+```
+
 ### apply
 
-Execute code transformations.
+Execute code transformations directly (no refinement).
 
 ```bash
 baca apply <change-file> --namespace <ns> [--wait] [--retries N] [--fork-org ORG]
