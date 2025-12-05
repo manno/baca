@@ -154,7 +154,7 @@ Gemini authentication (if using gemini-cli agent, choose one):
 }
 
 func init() {
-	rootCmd.AddCommand(setupCmd)
+	k8sCmd.AddCommand(setupCmd)
 
 	setupCmd.Flags().String("kubeconfig", "", "path to kubeconfig file")
 	setupCmd.Flags().String("namespace", "default", "kubernetes namespace")
